@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { env } from './config/env.js';
 import typeorm from './config/typeorm.js';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { UsersModule } from './users/users.module.js';
+import { AuthModule } from './auth/auth.module.js';
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         return configService.getOrThrow('database');
       },
     }),
+
+    AuthModule,
+    UsersModule,
   ],
 })
 export class AppModule {}
