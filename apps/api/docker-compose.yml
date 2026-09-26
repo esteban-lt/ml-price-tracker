@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nudge
+      POSTGRES_PASSWORD: nudge
+      POSTGRES_DB: nudge
+    ports:
+      - "5432:5432"
+    volumes:
+      - nudge_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  nudge_postgres_data:
