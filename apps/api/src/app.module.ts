@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import typeorm from './config/typeorm.js';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ProductsModule } from './products/products.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AuthModule } from './auth/auth.module.js';
 
     AuthModule,
     UsersModule,
+    ProductsModule,
   ],
 })
 export class AppModule {}
