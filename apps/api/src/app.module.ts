@@ -7,6 +7,7 @@ import typeorm from './config/typeorm.js';
 import { UsersModule } from './users/users.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { MercadoLibreModule } from './mercado-libre/mercado-libre.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ProductsModule } from './products/products.module.js';
     AuthModule,
     UsersModule,
     ProductsModule,
+    MercadoLibreModule,
   ],
 })
 export class AppModule {}
