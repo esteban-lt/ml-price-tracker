@@ -6,4 +6,8 @@ export const env = Joi.object({
   DATABASE_URL: Joi.string().uri().required(),
   JWT_SECRET: Joi.string().required(),
   JWT_EXPIRES_IN: Joi.string().required(),
+  ML_CLIENT_ID: Joi.string().required(),
+  ML_CLIENT_SECRET: Joi.string().required(),
+  ML_REDIRECT_URI: Joi.string().uri().default('https://oauth.pstmn.io/v1/callback'),
+  ML_ADMIN_EMAILS: Joi.string().allow('').default(''),
 });
