@@ -6,5 +6,6 @@ import { MercadoLibreController } from './mercado-libre.controller.js';
 @Module({
   imports: [MercadoLibreAuthModule, MercadoLibreApiModule],
   controllers: [MercadoLibreController],
+  exports: [MercadoLibreApiModule],
 })
 export class MercadoLibreModule {}
