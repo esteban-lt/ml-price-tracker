@@ -1,5 +1,5 @@
 import { firstValueFrom } from 'rxjs';
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { MercadoLibreAuthService } from '../auth/mercado-libre-auth.service.js';
 
@@ -11,7 +11,6 @@ export const SEARCH_BATCH_SIZE = 50;
 export const SEARCH_MAX_PAGES = 3;
 
 export interface MercadoLibreProduct {
-  position: number;
   id: string;
   name: string;
   url: string;
@@ -24,11 +23,15 @@ export interface MercadoLibreProduct {
   sellersCount: number;
 }
 
+export interface MercadoLibreListedProduct extends MercadoLibreProduct {
+  position: number;
+}
+
 export interface MercadoLibreSearchResult {
   query: string;
   page: number;
   hasMore: boolean;
-  products: MercadoLibreProduct[];
+  products: MercadoLibreListedProduct[];
 }
 
 interface Highlights {
@@ -45,6 +48,7 @@ interface CatalogProduct {
   name: string;
   status: string;
   pictures: { url: string }[];
+  buy_box_winner?: ProductItem | null;
 }
 
 interface ProductItem {
@@ -68,18 +72,31 @@ export class MercadoLibreApiService {
     private readonly authService: MercadoLibreAuthService,
   ) {}
 
-  async getProductsByCategory(categoryId: string): Promise<MercadoLibreProduct[]> {
+  async getProduct(productId: string): Promise<MercadoLibreProduct> {
+    let catalogProduct: CatalogProduct;
+    try {
+      catalogProduct = await this.get<CatalogProduct>(`/products/${productId}`);
+    } catch (error) {
+      if (error instanceof HttpException && error.getStatus() === HttpStatus.NOT_FOUND) {
+        throw new NotFoundException(`El producto ${productId} no existe en el catálogo de Mercado Libre`);
+      }
+      throw error;
+    }
+
+    const product = await this.withOffers(catalogProduct);
+    if (!product) {
+      throw new NotFoundException(`El producto ${productId} no está activo o no tiene vendedores en Mercado Libre`);
+    }
+    return product;
+  }
+
+  async getProductsByCategory(categoryId: string): Promise<MercadoLibreListedProduct[]> {
     const { content } = await this.get<Highlights>(`/highlights/${SITE_ID}/category/${categoryId}`);
     const highlights = content.filter((highlight) => highlight.type === 'PRODUCT');
 
-    const products = await mapWithConcurrency(highlights, async ({ id, position }) => {
-      try {
-        return this.withOffers(await this.get<CatalogProduct>(`/products/${id}`), position);
-      } catch (error) {
-        this.logger.warn(`Se descartó el producto ${id}: ${(error as Error).message}`);
-        return null;
-      }
-    });
+    const products = await mapWithConcurrency(highlights, ({ id, position }) =>
+      this.toListedProduct(() => this.get<CatalogProduct>(`/products/${id}`), id, position),
+    );
 
     return products.filter((product) => product !== null);
   }
@@ -96,7 +113,7 @@ export class MercadoLibreApiService {
     const { paging, results } = await this.get<ProductSearch>(`/products/search?${params.toString()}`);
 
     const products = await mapWithConcurrency(results, (product, index) =>
-      this.withOffers(product, offset + index + 1),
+      this.toListedProduct(async () => product, product.id, offset + index + 1),
     );
 
     return {
@@ -107,21 +124,29 @@ export class MercadoLibreApiService {
     };
   }
 
-  private async withOffers(product: CatalogProduct, position: number): Promise<MercadoLibreProduct | null> {
-    if (product.status !== 'active') return null;
-
-    let items: ProductItem[];
+  // En los listados un producto que falla se descarta para no tumbar toda la respuesta.
+  private async toListedProduct(
+    loadCatalogProduct: () => Promise<CatalogProduct>,
+    productId: string,
+    position: number,
+  ): Promise<MercadoLibreListedProduct | null> {
     try {
-      items = await this.getProductItems(product.id);
+      const product = await this.withOffers(await loadCatalogProduct());
+      return product && { position, ...product };
     } catch (error) {
-      this.logger.warn(`Se descartó el producto ${product.id}: ${(error as Error).message}`);
+      this.logger.warn(`Se descartó el producto ${productId}: ${(error as Error).message}`);
       return null;
     }
+  }
+
+  private async withOffers(product: CatalogProduct): Promise<MercadoLibreProduct | null> {
+    if (product.status !== 'active') return null;
+
+    const items = await this.getProductItems(product);
     if (items.length === 0) return null;
 
     const cheapest = items.reduce((min, item) => (item.price < min.price ? item : min));
     return {
-      position,
       id: product.id,
       name: product.name,
       url: `${PRODUCT_URL}/${product.id}`,
@@ -135,12 +160,21 @@ export class MercadoLibreApiService {
     };
   }
 
-  private async getProductItems(productId: string): Promise<ProductItem[]> {
+  private async getProductItems(product: CatalogProduct): Promise<ProductItem[]> {
     try {
-      const { results } = await this.get<{ results: ProductItem[] }>(`/products/${productId}/items`);
+      const { results } = await this.get<{ results: ProductItem[] }>(`/products/${product.id}/items`);
       return results;
     } catch (error) {
-      if (error instanceof HttpException && error.getStatus() === HttpStatus.NOT_FOUND) return [];
+      if (!(error instanceof HttpException)) throw error;
+
+      const status = error.getStatus();
+      if (status === HttpStatus.NOT_FOUND) return [];
+
+      // Mercado Libre restringe /items en algunos productos; buy_box_winner trae al menos la oferta ganadora.
+      if (status === HttpStatus.FORBIDDEN || status === HttpStatus.GONE) {
+        this.logger.warn(`/products/${product.id}/items respondió ${status}; se usa buy_box_winner`);
+        return product.buy_box_winner ? [product.buy_box_winner] : [];
+      }
       throw error;
     }
   }
