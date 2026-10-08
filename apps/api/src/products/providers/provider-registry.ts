@@ -1,4 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+
+import { StoreEnum } from '../entities/product.entity.js';
 import { ProductProvider } from '../interfaces/product-provider.js';
 
 export const PRODUCT_PROVIDERS = 'PRODUCT_PROVIDERS';
@@ -10,9 +12,9 @@ export class ProviderRegistry {
     private readonly providers: ProductProvider[],
   ) {}
 
-  getProvider(url: string): ProductProvider {
-    const provider = this.providers.find((provider) => provider.supports(url));
-    if(!provider) throw new BadRequestException('Unsupported URL');
+  getProviderForStore(store: StoreEnum): ProductProvider {
+    const provider = this.providers.find((provider) => provider.store === store);
+    if (!provider) throw new BadRequestException(`La tienda "${store}" no está soportada`);
     return provider;
   }
 }
