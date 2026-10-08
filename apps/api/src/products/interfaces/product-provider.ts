@@ -1,8 +1,7 @@
 import { StoreEnum } from '../entities/product.entity.js';
-import { ExternalProduct } from './external-product.js';
+import { ExternalProductData } from './external-product-data.js';
 
 export interface ProductProvider {
   readonly store: StoreEnum;
-  supports(url: string): boolean;
-  getProductDataByUrl(url: string): Promise<ExternalProduct>
+  fetchProductData(externalId: string): Promise<ExternalProductData>;
 }
