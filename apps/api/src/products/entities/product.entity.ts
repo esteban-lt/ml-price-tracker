@@ -30,7 +30,10 @@ export class Product {
   url: string;
 
   @Column({ name: 'image_url', type: 'varchar', nullable: true })
-  imageUrl: string;
+  imageUrl: string | null;
+
+  @Column({ name: 'is_available', type: 'boolean', default: true })
+  isAvailable: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
