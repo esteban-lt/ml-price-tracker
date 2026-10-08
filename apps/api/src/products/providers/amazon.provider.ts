@@ -1,18 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 
 import { StoreEnum } from '../entities/product.entity.js';
-import { ExternalProduct } from '../interfaces/external-product.js';
+import { ExternalProductData } from '../interfaces/external-product-data.js';
 import { ProductProvider } from '../interfaces/product-provider.js';
 
 @Injectable()
 export class AmazonProvider implements ProductProvider {
   readonly store = StoreEnum.AMAZON;
 
-  supports(url: string): boolean {
-    return new URL(url).hostname.includes('amazon.');
-  }
-
-  getProductDataByUrl(url: string): Promise<ExternalProduct> {
-    throw new Error('Method not implemented.');
+  fetchProductData(): Promise<ExternalProductData> {
+    throw new NotImplementedException('La integración con Amazon todavía no está disponible');
   }
 }

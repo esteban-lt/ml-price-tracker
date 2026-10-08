@@ -1,10 +1,13 @@
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { ProviderRegistry } from './providers/provider-registry.js';
+import { AddProductDto } from './dto/add-product.dto.js';
 import { Product } from './entities/product.entity.js';
+import { ProviderRegistry } from './providers/provider-registry.js';
+
+const POSTGRES_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class ProductsService {
@@ -15,27 +18,49 @@ export class ProductsService {
     private readonly providerRegistry: ProviderRegistry,
   ) {}
 
-  async addByUrl(url: string): Promise<Product> {
-    const provider = this.providerRegistry.getProvider(url);
-    const data = await provider.getProductDataByUrl(url);
+  async addProduct({ store, externalId }: AddProductDto): Promise<Product> {
+    const provider = this.providerRegistry.getProviderForStore(store);
+    const productData = await provider.fetchProductData(externalId);
 
-    const existingProduct = await this.productRepository.findOne({
-      where: {
-        store: provider.store,
-        externalId: data.externalId,
-      },
+    const existingProduct = await this.productRepository.findOneBy({
+      store,
+      externalId: productData.externalId,
     });
-
-    if(existingProduct) return existingProduct;
+    if (existingProduct) return existingProduct;
 
     const product = this.productRepository.create({
-      store: provider.store,
-      externalId: data.externalId,
-      name: data.name,
-      url: data.permaLink,
-      imageUrl: data.imageUrl,
+      store,
+      externalId: productData.externalId,
+      name: productData.name,
+      url: productData.url,
+      imageUrl: productData.imageUrl,
     });
 
-    return this.productRepository.save(product);
+    try {
+      return await this.productRepository.save(product);
+    } catch (error) {
+      // Otra petición pudo guardar el mismo producto entre la búsqueda y el insert.
+      if (isUniqueViolation(error)) {
+        return this.productRepository.findOneByOrFail({ store, externalId: productData.externalId });
+      }
+      throw error;
+    }
   }
+
+  findAll(): Promise<Product[]> {
+    return this.productRepository.find({ order: { createdAt: 'DESC' } });
+  }
+
+  async findById(id: string): Promise<Product> {
+    const product = await this.productRepository.findOneBy({ id });
+    if (!product) throw new NotFoundException(`El producto ${id} no existe`);
+    return product;
+  }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    error instanceof QueryFailedError &&
+    (error.driverError as { code?: string }).code === POSTGRES_UNIQUE_VIOLATION
+  );
 }
