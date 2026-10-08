@@ -1,18 +1,17 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { AmazonProvider } from './providers/amazon.provider.js';
-import { MercadoLibreProvider } from './providers/mercado-libre.provider.js';
+import { MercadoLibreModule } from '../mercado-libre/mercado-libre.module.js';
+import { Product } from './entities/product.entity.js';
 import { ProductsController } from './products.controller.js';
 import { ProductsService } from './products.service.js';
+import { AmazonProvider } from './providers/amazon.provider.js';
+import { MercadoLibreProvider } from './providers/mercado-libre.provider.js';
 import { PRODUCT_PROVIDERS, ProviderRegistry } from './providers/provider-registry.js';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Product } from './entities/product.entity.js';
 
 @Module({
+  imports: [TypeOrmModule.forFeature([Product]), MercadoLibreModule],
   controllers: [ProductsController],
-  imports: [
-    TypeOrmModule.forFeature([Product]),
-  ],
   providers: [
     ProductsService,
     ProviderRegistry,
