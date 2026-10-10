@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { MercadoLibreModule } from './mercado-libre/mercado-libre.module.js';
 import { PriceHistoryModule } from './price-history/price-history.module.js';
+import { TrackedProductsModule } from './tracked-products/tracked-products.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PriceHistoryModule } from './price-history/price-history.module.js';
     ProductsModule,
     MercadoLibreModule,
     PriceHistoryModule,
+    TrackedProductsModule,
   ],
 })
 export class AppModule {}
