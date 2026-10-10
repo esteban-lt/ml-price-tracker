@@ -208,7 +208,7 @@ export class MercadoLibreApiService {
   }
 }
 
-async function mapWithConcurrency<T, R>(
+export async function mapWithConcurrency<T, R>(
   items: T[],
   fn: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {

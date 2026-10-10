@@ -11,5 +11,6 @@ import { TrackedProductsService } from './tracked-products.service.js';
   imports: [TypeOrmModule.forFeature([TrackedProduct]), ProductsModule, PriceHistoryModule],
   controllers: [TrackedProductsController],
   providers: [TrackedProductsService],
+  exports: [TrackedProductsService],
 })
 export class TrackedProductsModule {}

@@ -3,7 +3,9 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { PriceHistory } from '../price-history/entities/price-history.entity.js';
 import { PriceHistoryService } from '../price-history/price-history.service.js';
+import { Product } from '../products/entities/product.entity.js';
 import { ProductsService } from '../products/products.service.js';
 import { TrackProductDto } from './dto/track-product.dto.js';
 import { UpdateThresholdDto } from './dto/update-threshold.dto.js';
@@ -77,6 +79,33 @@ export class TrackedProductsService {
     const trackedProduct = await this.findOne(userId, id);
     trackedProduct.status = status;
     return this.trackedProductRepository.save(trackedProduct);
+  }
+
+  // Productos con al menos un seguimiento activo (sin repetir) y sin snapshot posterior a `checkedBefore`.
+  findProductsToRefresh(checkedBefore: Date): Promise<Product[]> {
+    return this.trackedProductRepository.manager
+      .createQueryBuilder(Product, 'product')
+      .where((qb) => {
+        const activeTracking = qb
+          .subQuery()
+          .select('1')
+          .from(TrackedProduct, 'tracked')
+          .where('tracked.product_id = product.id')
+          .andWhere('tracked.status = :status', { status: TrackingStatusEnum.ACTIVE })
+          .getQuery();
+        return `EXISTS ${activeTracking}`;
+      })
+      .andWhere((qb) => {
+        const recentSnapshot = qb
+          .subQuery()
+          .select('1')
+          .from(PriceHistory, 'snapshot')
+          .where('snapshot.product_id = product.id')
+          .andWhere('snapshot.checked_at > :checkedBefore', { checkedBefore })
+          .getQuery();
+        return `NOT EXISTS ${recentSnapshot}`;
+      })
+      .getMany();
   }
 
   async remove(userId: string, id: string): Promise<void> {
