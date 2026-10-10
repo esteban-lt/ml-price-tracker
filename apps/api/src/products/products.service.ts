@@ -1,8 +1,9 @@
-import { QueryFailedError, Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { PriceHistoryService } from '../price-history/price-history.service.js';
 import { AddProductDto } from './dto/add-product.dto.js';
 import { Product } from './entities/product.entity.js';
 import { ProviderRegistry } from './providers/provider-registry.js';
@@ -16,6 +17,8 @@ export class ProductsService {
     private readonly productRepository: Repository<Product>,
 
     private readonly providerRegistry: ProviderRegistry,
+    private readonly priceHistoryService: PriceHistoryService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async addProduct({ store, externalId }: AddProductDto): Promise<Product> {
@@ -37,7 +40,23 @@ export class ProductsService {
     });
 
     try {
-      return await this.productRepository.save(product);
+      // El producto y su primer snapshot se guardan juntos: si uno falla, no queda ninguno.
+      return await this.dataSource.transaction(async (manager) => {
+        const savedProduct = await manager.getRepository(Product).save(product);
+
+        await this.priceHistoryService.recordSnapshot(
+          {
+            productId: savedProduct.id,
+            price: productData.price,
+            originalPrice: productData.originalPrice,
+            sellersCount: productData.sellersCount,
+            currency: productData.currency,
+          },
+          manager,
+        );
+
+        return savedProduct;
+      });
     } catch (error) {
       // Otra petición pudo guardar el mismo producto entre la búsqueda y el insert.
       if (isUniqueViolation(error)) {
