@@ -10,4 +10,6 @@ export const env = Joi.object({
   ML_CLIENT_SECRET: Joi.string().required(),
   ML_REDIRECT_URI: Joi.string().uri().default('https://oauth.pstmn.io/v1/callback'),
   ML_TOKENS_FILE: Joi.string().default('.ml-tokens.json'),
+  PRICE_REFRESH_ENABLED: Joi.boolean().default(true),
+  PRICE_REFRESH_INTERVAL_MINUTES: Joi.number().integer().min(1).default(360),
 });
