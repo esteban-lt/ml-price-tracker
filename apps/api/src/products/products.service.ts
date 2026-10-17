@@ -12,7 +12,7 @@ import { ProviderRegistry } from './providers/provider-registry.js';
 
 const POSTGRES_UNIQUE_VIOLATION = '23505';
 
-export type RefreshOutcome = 'updated' | 'unavailable';
+export type RefreshResult = { outcome: 'updated'; snapshot: PriceHistory } | { outcome: 'unavailable' };
 
 @Injectable()
 export class ProductsService {
@@ -64,7 +64,7 @@ export class ProductsService {
   // Revisa el precio de un producto ya guardado. Un NotFound del provider significa que el producto ya
   // no tiene vendedores o precio (se marca no disponible y no se guarda snapshot); cualquier otro error
   // (límite de peticiones, caída, timeout) es transitorio: se propaga sin tocar la disponibilidad.
-  async refreshPrice(product: Product): Promise<RefreshOutcome> {
+  async refreshPrice(product: Product): Promise<RefreshResult> {
     const provider = this.providerRegistry.getProviderForStore(product.store);
 
     let productData: ExternalProductData;
@@ -74,14 +74,15 @@ export class ProductsService {
       if (!(error instanceof NotFoundException)) throw error;
 
       if (product.isAvailable) await this.productRepository.update(product.id, { isAvailable: false });
-      return 'unavailable';
+      return { outcome: 'unavailable' };
     }
 
-    await this.dataSource.transaction(async (manager) => {
-      await this.saveSnapshot(product.id, productData, manager);
+    const snapshot = await this.dataSource.transaction(async (manager) => {
+      const savedSnapshot = await this.saveSnapshot(product.id, productData, manager);
       if (!product.isAvailable) await manager.getRepository(Product).update(product.id, { isAvailable: true });
+      return savedSnapshot;
     });
-    return 'updated';
+    return { outcome: 'updated', snapshot };
   }
 
   findAll(): Promise<Product[]> {
@@ -94,7 +95,7 @@ export class ProductsService {
     return product;
   }
 
-  // Único punto donde se guarda un snapshot de precio al agregar o revisar un producto; las alertas se enganchan aquí.
+  // Único punto donde se guarda un snapshot de precio al agregar o revisar un producto; el job evalúa las alertas con el que devuelve refreshPrice.
   private saveSnapshot(productId: string, data: ExternalProductData, manager: EntityManager): Promise<PriceHistory> {
     return this.priceHistoryService.recordSnapshot(
       {
