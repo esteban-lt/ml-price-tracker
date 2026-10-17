@@ -49,9 +49,6 @@ lerna-debug.log*
 .env.production.local
 .env.local
 
-# Mercado Libre OAuth tokens (apps/api)
-.ml-tokens.json
-
 # temp directory
 .temp
 .tmp
