@@ -110,7 +110,7 @@ Set `NODE_ENV=production`. The API refuses to start if any of these is missing o
 | Variable | Notes |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | At least 32 characters |
+| `JWT_SECRET` · `JWT_EXPIRES_IN` | Secret of at least 32 characters · token lifetime (e.g. `2h`) |
 | `VERIFICATION_CODE_SECRET` | At least 32 characters |
 | `ML_CLIENT_ID` · `ML_CLIENT_SECRET` | Mercado Libre app credentials |
 | `CORS_ORIGIN` | Frontend origin(s), comma separated, no `*` |
@@ -118,6 +118,24 @@ Set `NODE_ENV=production`. The API refuses to start if any of these is missing o
 | `RESEND_API_KEY` · `MAIL_FROM` | `MAIL_FROM` must use a domain verified in Resend |
 
 `PORT` is provided by the host (Render sets it). `ADMIN_EMAILS` is optional. `GET /health` is a lightweight endpoint (no database access) for uptime checks.
+
+## Docker
+
+The image (`apps/api/Dockerfile`) contains only the compiled API and production dependencies; no `.env` or secrets. Pass the variables listed in [Production](#production) at runtime.
+
+```bash
+docker build -t nudge-api apps/api
+```
+
+```bash
+docker run -d -p 3000:3000 --env-file prod.env nudge-api
+```
+
+Migrations never run on startup. Run them with the same image before starting a new version:
+
+```bash
+docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/typeorm/cli.js migration:run -d dist/config/data-source.js
+```
 
 ## API overview
 
