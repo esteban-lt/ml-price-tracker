@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { AlertDetectionService } from '../alerts/alert-detection.service.js';
 import { mapWithConcurrency } from '../mercado-libre/api/mercado-libre-api.service.js';
-import { ProductsService } from '../products/products.service.js';
+import { PriceHistory } from '../price-history/entities/price-history.entity.js';
+import { ProductsService, RefreshResult } from '../products/products.service.js';
 import { TrackedProductsService } from '../tracked-products/tracked-products.service.js';
 
 // Se omiten los productos con un snapshot más reciente que esto (p. ej. el que se crea al agregarlos).
@@ -15,6 +17,7 @@ export class PriceRefreshService {
   constructor(
     private readonly trackedProductsService: TrackedProductsService,
     private readonly productsService: ProductsService,
+    private readonly alertDetectionService: AlertDetectionService,
   ) {}
 
   async run(): Promise<void> {
@@ -39,22 +42,37 @@ export class PriceRefreshService {
       new Date(startedAt - MIN_SNAPSHOT_AGE_MS),
     );
 
+    let alertsCreated = 0;
     const outcomes = await mapWithConcurrency(products, async (product) => {
+      let result: RefreshResult;
       try {
-        return await this.productsService.refreshPrice(product);
+        result = await this.productsService.refreshPrice(product);
       } catch (error) {
         this.logger.warn(
           `No se pudo revisar el producto ${product.id} (${product.externalId}): ${(error as Error).message}`,
         );
         return 'failed' as const;
       }
+
+      if (result.outcome === 'updated') alertsCreated += await this.detectAlerts(result.snapshot);
+      return result.outcome;
     });
 
     const count = (outcome: string) => outcomes.filter((result) => result === outcome).length;
     const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
     this.logger.log(
       `Corrida terminada en ${seconds}s: ${products.length} revisados, ${count('updated')} actualizados, ` +
-        `${count('unavailable')} sin disponibilidad, ${count('failed')} fallidos`,
+        `${count('unavailable')} sin disponibilidad, ${count('failed')} fallidos, ${alertsCreated} alertas creadas`,
     );
+  }
+
+  // Un fallo al evaluar alertas no debe detener la revisión de los demás productos.
+  private async detectAlerts(snapshot: PriceHistory): Promise<number> {
+    try {
+      return await this.alertDetectionService.detectForSnapshot(snapshot);
+    } catch (error) {
+      this.logger.error(`No se pudieron evaluar las alertas del producto ${snapshot.productId}: ${(error as Error).message}`);
+      return 0;
+    }
   }
 }
