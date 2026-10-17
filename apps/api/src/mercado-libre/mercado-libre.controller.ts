@@ -45,9 +45,7 @@ export class MercadoLibreController {
   getProductsByCategory(@Param('category') slug: string) {
     const category = findMercadoLibreCategory(slug);
     if (!category) {
-      throw new NotFoundException(
-        `La categoría "${slug}" no existe; consulta GET /mercado-libre/categories`,
-      );
+      throw new NotFoundException(`La categoría "${slug}" no existe`);
     }
 
     return this.apiService.getProductsByCategory(category.id);

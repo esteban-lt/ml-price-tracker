@@ -1,3 +1,24 @@
+import { BadGatewayException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+
+// Error interno de una petición a Mercado Libre: conserva el código para decidir qué hacer,
+// pero nunca llega al cliente tal cual (ver toClientException).
+export class MercadoLibreRequestError extends Error {
+  constructor(readonly status: number | undefined) {
+    super(`Mercado Libre respondió ${status ?? 'sin respuesta'}`);
+  }
+}
+
+// Mensajes genéricos para el cliente; el detalle ya quedó en el log.
+export function toClientException(error: unknown): unknown {
+  if (!(error instanceof MercadoLibreRequestError)) return error;
+
+  if (error.status === HttpStatus.NOT_FOUND) return new NotFoundException('No se encontró en Mercado Libre');
+  if (error.status === HttpStatus.TOO_MANY_REQUESTS) {
+    return new HttpException('Mercado Libre está recibiendo demasiadas peticiones; intenta más tarde', HttpStatus.TOO_MANY_REQUESTS);
+  }
+  return new BadGatewayException('Mercado Libre no respondió correctamente; intenta más tarde');
+}
+
 export interface MercadoLibreErrorDetail {
   status?: number;
   code?: string;

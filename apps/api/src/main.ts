@@ -24,7 +24,8 @@ async function bootstrap() {
 
   setupApp(app);
 
-  await app.listen(process.env.PORT ?? 3000);
-  logger.log(`App running on port ${process.env.PORT ?? 3000}`)
+  const port = configService.getOrThrow<number>('PORT');
+  await app.listen(port);
+  logger.log(`App running on port ${port}`)
 }
 await bootstrap();

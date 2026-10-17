@@ -1,8 +1,13 @@
 import { firstValueFrom } from 'rxjs';
-import { HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { MercadoLibreAuthService } from '../auth/mercado-libre-auth.service.js';
-import { describeMercadoLibreError, formatMercadoLibreError } from '../mercado-libre-error.js';
+import {
+  describeMercadoLibreError,
+  formatMercadoLibreError,
+  MercadoLibreRequestError,
+  toClientException,
+} from '../mercado-libre-error.js';
 
 const API_URL = 'https://api.mercadolibre.com';
 const SITE_ID = 'MLM';
@@ -60,10 +65,6 @@ interface ProductItem {
   shipping: { free_shipping: boolean };
 }
 
-interface HttpErrorLike {
-  response?: { status?: number; data?: unknown };
-}
-
 @Injectable()
 export class MercadoLibreApiService {
   private readonly logger = new Logger(MercadoLibreApiService.name);
@@ -78,7 +79,7 @@ export class MercadoLibreApiService {
     try {
       catalogProduct = await this.get<CatalogProduct>(`/products/${productId}`);
     } catch (error) {
-      if (error instanceof HttpException && error.getStatus() === HttpStatus.NOT_FOUND) {
+      if (error instanceof NotFoundException) {
         throw new NotFoundException(`El producto ${productId} no existe en el catálogo de Mercado Libre`);
       }
       throw error;
@@ -163,12 +164,12 @@ export class MercadoLibreApiService {
 
   private async getProductItems(product: CatalogProduct): Promise<ProductItem[]> {
     try {
-      const { results } = await this.get<{ results: ProductItem[] }>(`/products/${product.id}/items`);
+      const { results } = await this.request<{ results: ProductItem[] }>(`/products/${product.id}/items`);
       return results;
     } catch (error) {
-      if (!(error instanceof HttpException)) throw error;
+      if (!(error instanceof MercadoLibreRequestError)) throw error;
 
-      const status = error.getStatus();
+      const { status } = error;
       if (status === HttpStatus.NOT_FOUND) return [];
 
       // Mercado Libre restringe /items en algunos productos; buy_box_winner trae al menos la oferta ganadora.
@@ -176,11 +177,19 @@ export class MercadoLibreApiService {
         this.logger.warn(`/products/${product.id}/items respondió ${status}; se usa buy_box_winner`);
         return product.buy_box_winner ? [product.buy_box_winner] : [];
       }
-      throw error;
+      throw toClientException(error);
     }
   }
 
-  private async get<T>(path: string, isRetry = false): Promise<T> {
+  private async get<T>(path: string): Promise<T> {
+    try {
+      return await this.request<T>(path);
+    } catch (error) {
+      throw toClientException(error);
+    }
+  }
+
+  private async request<T>(path: string, isRetry = false): Promise<T> {
     const token = await this.authService.getValidToken();
 
     try {
@@ -191,20 +200,17 @@ export class MercadoLibreApiService {
       );
       return response.data;
     } catch (error) {
-      const { status, data } = (error as HttpErrorLike).response ?? {};
+      const detail = describeMercadoLibreError(error);
 
-      if (status === HttpStatus.UNAUTHORIZED && !isRetry) {
+      if (detail.status === HttpStatus.UNAUTHORIZED && !isRetry) {
         this.authService.invalidateAccessToken();
-        return this.get<T>(path, true);
+        return this.request<T>(path, true);
       }
 
-      if (status !== HttpStatus.NOT_FOUND) {
-        this.logger.error(formatMercadoLibreError('GET', path, describeMercadoLibreError(error)));
+      if (detail.status !== HttpStatus.NOT_FOUND) {
+        this.logger.error(formatMercadoLibreError('GET', path, detail));
       }
-      throw new HttpException(
-        { message: `Mercado Libre respondió con error en ${path}`, mercadoLibre: data },
-        status ?? HttpStatus.BAD_GATEWAY,
-      );
+      throw new MercadoLibreRequestError(detail.status);
     }
   }
 }

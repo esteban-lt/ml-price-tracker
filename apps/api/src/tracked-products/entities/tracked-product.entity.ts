@@ -83,6 +83,6 @@ export class TrackedProduct {
   })
   status: TrackingStatusEnum;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

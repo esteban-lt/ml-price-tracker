@@ -49,6 +49,6 @@ export class PriceHistory {
   @Column({ type: 'varchar', length: 3, default: 'MXN' })
   currency: string;
 
-  @CreateDateColumn({ name: 'checked_at' })
+  @CreateDateColumn({ name: 'checked_at', type: 'timestamptz' })
   checkedAt: Date;
 }

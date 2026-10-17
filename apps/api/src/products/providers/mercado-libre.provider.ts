@@ -1,9 +1,4 @@
-import {
-  BadGatewayException,
-  Injectable,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { BadGatewayException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
 
 import {
   MercadoLibreApiService,
@@ -12,6 +7,12 @@ import {
 import { StoreEnum } from '../entities/product.entity.js';
 import { ExternalProductData } from '../interfaces/external-product-data.js';
 import { ProductProvider } from '../interfaces/product-provider.js';
+
+const PASSTHROUGH_STATUSES = new Set<number>([
+  HttpStatus.NOT_FOUND,
+  HttpStatus.TOO_MANY_REQUESTS,
+  HttpStatus.SERVICE_UNAVAILABLE,
+]);
 
 @Injectable()
 export class MercadoLibreProvider implements ProductProvider {
@@ -34,13 +35,13 @@ export class MercadoLibreProvider implements ProductProvider {
     };
   }
 
-  // Los errores propios de Mercado Libre (401, 429, 5xx, red) se exponen como 502 para no
-  // confundirlos con errores del cliente; 404 (producto inválido) y 503 (sin autorizar) se conservan.
+  // Se conservan 404 (producto inválido), 429 (demasiadas peticiones) y 503 (sin autorizar);
+  // cualquier otro error de Mercado Libre se expone como 502 para no confundirlo con un error del cliente.
   private async getProduct(externalId: string): Promise<MercadoLibreProduct> {
     try {
       return await this.mercadoLibreApiService.getProduct(externalId);
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ServiceUnavailableException) throw error;
+      if (error instanceof HttpException && PASSTHROUGH_STATUSES.has(error.getStatus())) throw error;
       throw new BadGatewayException(`No se pudo consultar el producto ${externalId} en Mercado Libre`);
     }
   }

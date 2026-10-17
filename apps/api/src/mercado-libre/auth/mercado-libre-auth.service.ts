@@ -127,8 +127,8 @@ export class MercadoLibreAuthService {
   private async doRefresh(): Promise<string> {
     const refreshToken = await this.loadRefreshToken();
     if (!refreshToken) {
-      throw new ServiceUnavailableException(
-        'Mercado Libre no está autorizado: abre GET /mercado-libre/auth/url y luego POST /mercado-libre/auth/exchange con el code',
+      throw this.unavailable(
+        'Mercado Libre no está autorizado: un administrador debe abrir GET /mercado-libre/auth/url y luego POST /mercado-libre/auth/exchange con el code',
       );
     }
 
@@ -136,22 +136,28 @@ export class MercadoLibreAuthService {
       return await this.refreshWith(refreshToken);
     } catch (error) {
       if (!(error instanceof TokenRequestError && error.code === 'invalid_grant')) {
-        throw new ServiceUnavailableException('No se pudo renovar el token de Mercado Libre; intenta más tarde');
+        throw this.unavailable('No se pudo renovar el token de Mercado Libre; se reintentará en la siguiente petición');
       }
     }
 
     // Otra instancia (p. ej. durante un despliegue) pudo renovar justo antes e invalidar el que leímos.
     const latest = await this.loadRefreshToken();
     if (!latest || latest === refreshToken) {
-      throw new ServiceUnavailableException(`El refresh_token de Mercado Libre ya no es válido: ${REAUTHORIZE_HINT}`);
+      throw this.unavailable(`El refresh_token de Mercado Libre ya no es válido: ${REAUTHORIZE_HINT}`);
     }
 
     this.logger.warn('El refresh_token cambió en la base durante la renovación; se reintenta una vez con el nuevo');
     try {
       return await this.refreshWith(latest);
     } catch {
-      throw new ServiceUnavailableException(`No se pudo renovar el token de Mercado Libre: ${REAUTHORIZE_HINT}`);
+      throw this.unavailable(`No se pudo renovar el token de Mercado Libre: ${REAUTHORIZE_HINT}`);
     }
+  }
+
+  // El detalle (incluidas las instrucciones de reautorización) va al log; el cliente solo ve un 503 genérico.
+  private unavailable(logMessage: string): ServiceUnavailableException {
+    this.logger.error(logMessage);
+    return new ServiceUnavailableException('Mercado Libre no está disponible en este momento; intenta más tarde');
   }
 
   private async refreshWith(refreshToken: string): Promise<string> {
