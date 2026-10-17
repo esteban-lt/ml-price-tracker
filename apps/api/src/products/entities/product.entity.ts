@@ -17,7 +17,7 @@ export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'enum', enum: StoreEnum })
+  @Column({ type: 'enum', enum: StoreEnum, enumName: 'store_enum' })
   store: StoreEnum;
 
   @Column({ name: 'external_id', type: 'varchar' })
@@ -35,6 +35,6 @@ export class Product {
   @Column({ name: 'is_available', type: 'boolean', default: true })
   isAvailable: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

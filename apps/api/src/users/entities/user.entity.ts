@@ -20,6 +20,6 @@ export class User {
   @Column({ name: 'email_notifications', type: 'boolean', default: true })
   emailNotifications: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

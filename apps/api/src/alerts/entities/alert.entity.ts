@@ -49,9 +49,9 @@ export class Alert {
   @Column({ type: 'int', default: 0 })
   attempts: number;
 
-  @Column({ name: 'read_at', type: 'timestamp', nullable: true })
+  @Column({ name: 'read_at', type: 'timestamptz', nullable: true })
   readAt: Date | null;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }
