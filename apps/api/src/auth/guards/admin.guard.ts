@@ -24,6 +24,9 @@ export class AdminGuard implements CanActivate {
     if (!user || !this.adminEmails.has(normalizeEmail(user.email))) {
       throw new ForbiddenException('Solo un administrador puede usar este endpoint');
     }
+    if (!user.emailVerified) {
+      throw new ForbiddenException('Debes verificar tu correo para usar este endpoint');
+    }
     return true;
   }
 }

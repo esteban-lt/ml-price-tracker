@@ -37,4 +37,10 @@ export const env = Joi.object({
     then: Joi.string().uri().required(),
     otherwise: Joi.string().uri().default('http://localhost:5173'),
   }),
+  // Firma (HMAC) de los códigos de verificación de correo.
+  VERIFICATION_CODE_SECRET: Joi.string().empty('').min(32).when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(32).required(),
+    otherwise: Joi.string().min(32).default('dev-only-verification-code-secret-change-me'),
+  }),
 });

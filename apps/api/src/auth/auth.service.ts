@@ -9,12 +9,14 @@ import { LoginDto } from './dto/login.dto.js';
 import { AuthResponseDto } from './dto/auth-response.dto.js';
 import { JwtPayload } from './interfaces/jwt-payload.js';
 import { UserMapper } from '../users/mappers/user.mapper.js';
+import { EmailVerificationService } from './email-verification.service.js';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<AuthResponseDto> {
@@ -25,6 +27,7 @@ export class AuthService {
       ...createUserDto,
       password: hashedPassword,
     });
+    this.emailVerificationService.sendCodeInBackground(user);
 
     const payload: JwtPayload = {
       id: user.id,
