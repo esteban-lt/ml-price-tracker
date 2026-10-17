@@ -80,3 +80,47 @@ describe('MercadoLibreAuthService (renovación del token)', () => {
     expect(http.post).not.toHaveBeenCalled();
   });
 });
+
+describe('MercadoLibreAuthService (intercambio del code)', () => {
+  it('guarda el refresh token y deja el access token en memoria', async () => {
+    const { service, http, repository } = setup([null]);
+    http.post.mockReturnValue(from([{ data: tokenResponse(1) }]));
+
+    const status = await service.exchangeCode('TG-code');
+
+    expect(repository.upsert).toHaveBeenCalledWith({ id: 1, refreshToken: 'refresh-1' }, ['id']);
+    expect(status).toMatchObject({ authorized: true, access_token_expires_at: expect.any(String) });
+    expect(String(http.post.mock.calls[0][1])).toContain('grant_type=authorization_code');
+    expect(await service.getValidToken()).toBe('access-1');
+  });
+
+  it('da un error claro si Mercado Libre no devuelve refresh token', async () => {
+    const { service, http, repository } = setup([null]);
+    http.post.mockReturnValue(from([{ data: { ...tokenResponse(1), refresh_token: undefined } }]));
+
+    await expect(service.exchangeCode('TG-code')).rejects.toThrow(/refresh_token/);
+    expect(repository.upsert).not.toHaveBeenCalled();
+  });
+
+  it('si Mercado Libre rechaza el code responde 503 sin guardar nada', async () => {
+    const { service, http, repository } = setup([null]);
+    http.post.mockReturnValue(invalidGrant());
+
+    await expect(service.exchangeCode('TG-code')).rejects.toThrow(ServiceUnavailableException);
+    expect(repository.upsert).not.toHaveBeenCalled();
+  });
+
+  // Comportamiento actual: el fallo se registra en el log, el access token queda en memoria y el
+  // estado refleja lo que hay en la base (sin autorización guardada).
+  it('si falla el guardado no lanza error y el estado muestra que no quedó autorizado', async () => {
+    const { service, http, repository } = setup([null]);
+    http.post.mockReturnValue(from([{ data: tokenResponse(1) }]));
+    repository.upsert.mockRejectedValue(new Error('connection terminated'));
+    repository.existsBy.mockResolvedValue(false);
+
+    const status = await service.exchangeCode('TG-code');
+
+    expect(status.authorized).toBe(false);
+    expect(await service.getValidToken()).toBe('access-1');
+  });
+});
