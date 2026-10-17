@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { getOptionsToken } from '@nestjs/throttler';
 import { DataSource } from 'typeorm';
@@ -39,7 +40,7 @@ export async function createTestApp({ throttle = false } = {}): Promise<TestApp>
   }
 
   const moduleRef = await builder.compile();
-  const app = moduleRef.createNestApplication({ logger: false });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
   setupApp(app);
   await app.init();
 

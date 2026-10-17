@@ -1,6 +1,7 @@
 import { resolveTestDatabaseUrl } from './test-database.js';
 
 export const TEST_ADMIN_EMAIL = 'admin@example.test';
+export const TEST_FRONTEND_ORIGIN = 'http://app.example.test';
 
 // Se ejecuta antes de importar cada archivo de pruebas, así ConfigModule valida estos valores
 // (dotenv no sobrescribe variables ya definidas). Credenciales falsas: nada sale a servicios reales.
@@ -15,4 +16,5 @@ Object.assign(process.env, {
   RESEND_API_KEY: '',
   PRICE_REFRESH_ENABLED: 'false',
   ADMIN_EMAILS: TEST_ADMIN_EMAIL,
+  CORS_ORIGIN: TEST_FRONTEND_ORIGIN,
 });

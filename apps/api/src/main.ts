@@ -10,19 +10,9 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const configService = app.get(ConfigService);
 
-  app.set('trust proxy', 1);
-
-  app.enableCors({
-    origin: configService
-      .getOrThrow<string>('CORS_ORIGIN')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
-
   setupApp(app);
+  // Cierra la conexión a la base y detiene los jobs cuando Render manda SIGTERM al redesplegar.
+  app.enableShutdownHooks();
 
   const port = configService.getOrThrow<number>('PORT');
   await app.listen(port);
