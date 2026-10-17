@@ -15,6 +15,7 @@ import { MercadoLibreModule } from './mercado-libre/mercado-libre.module.js';
 import { PriceHistoryModule } from './price-history/price-history.module.js';
 import { TrackedProductsModule } from './tracked-products/tracked-products.module.js';
 import { PriceRefreshModule } from './price-refresh/price-refresh.module.js';
+import { AlertsModule } from './alerts/alerts.module.js';
 import { HealthModule } from './health/health.module.js';
 
 @Module({
@@ -43,6 +44,7 @@ import { HealthModule } from './health/health.module.js';
     PriceHistoryModule,
     TrackedProductsModule,
     PriceRefreshModule,
+    AlertsModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
