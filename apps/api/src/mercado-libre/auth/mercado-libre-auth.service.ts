@@ -1,13 +1,17 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { Repository } from 'typeorm';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
 import { firstValueFrom } from 'rxjs';
+
+import { describeMercadoLibreError, formatMercadoLibreError } from '../mercado-libre-error.js';
+import { MERCADO_LIBRE_TOKEN_ID, MercadoLibreToken } from './entities/mercado-libre-token.entity.js';
 
 const AUTHORIZATION_URL = 'https://auth.mercadolibre.com.mx/authorization';
 const TOKEN_URL = 'https://api.mercadolibre.com/oauth/token';
 const SAFETY_MARGIN_MS = 60_000;
+const REAUTHORIZE_HINT = 'vuelve a autorizar con GET /mercado-libre/auth/url';
 
 interface TokenResponse {
   access_token: string;
@@ -18,44 +22,45 @@ interface TokenResponse {
   refresh_token?: string;
 }
 
-interface StoredTokens {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number; // epoch ms
-  user_id: number;
-  scope: string;
+interface AccessToken {
+  value: string;
+  expiresAt: number; // epoch ms
 }
 
 export interface MercadoLibreAuthStatus {
   authorized: boolean;
-  user_id?: number;
-  scope?: string;
   access_token_expires_at?: string;
+}
+
+// Fallo de /oauth/token con solo el código de error de Mercado Libre (p. ej. invalid_grant).
+class TokenRequestError extends Error {
+  constructor(readonly code: string | undefined) {
+    super(`Mercado Libre rechazó la petición de token${code ? ` (${code})` : ''}`);
+  }
 }
 
 /**
  * Flujo Authorization Code de Mercado Libre.
  *
- * 1. Abrir una vez la URL de getAuthorizationUrl() y autorizar con una cuenta real.
- * 2. Intercambiar el `code` del callback con exchangeCode().
- * 3. Los tokens se guardan en ML_TOKENS_FILE y el access_token se renueva solo con el
- *    refresh_token. En Mercado Libre el refresh_token es de un solo uso: cada renovación
- *    devuelve uno nuevo, por eso se persiste en archivo y no en .env.
+ * 1. Un administrador abre una vez la URL de getAuthorizationUrl() y autoriza con una cuenta real.
+ * 2. Intercambia el `code` del callback con exchangeCode().
+ * 3. Solo el refresh_token se guarda en la tabla mercado_libre_token (una única fila). El
+ *    access_token vive en memoria y se renueva con el refresh_token cuando falta o está por
+ *    expirar. En Mercado Libre el refresh_token es de un solo uso: cada renovación devuelve
+ *    uno nuevo que se guarda de inmediato.
  */
 @Injectable()
 export class MercadoLibreAuthService {
   private readonly logger = new Logger(MercadoLibreAuthService.name);
-  private readonly tokensFile: string;
-  private tokens: StoredTokens | null = null;
-  private tokensLoaded = false;
+  private accessToken: AccessToken | null = null;
   private refreshInFlight: Promise<string> | null = null;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-  ) {
-    this.tokensFile = resolve(this.configService.getOrThrow<string>('ML_TOKENS_FILE'));
-  }
+    @InjectRepository(MercadoLibreToken)
+    private readonly tokenRepository: Repository<MercadoLibreToken>,
+  ) {}
 
   getAuthorizationUrl(): string {
     const params = new URLSearchParams({
@@ -67,51 +72,47 @@ export class MercadoLibreAuthService {
   }
 
   async exchangeCode(code: string): Promise<MercadoLibreAuthStatus> {
-    const data = await this.requestToken(
-      {
+    let data: TokenResponse;
+    try {
+      data = await this.requestToken({
         grant_type: 'authorization_code',
         code,
         redirect_uri: this.configService.getOrThrow<string>('ML_REDIRECT_URI'),
-      },
-      'No se pudo intercambiar el code por un token de Mercado Libre',
-    );
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo intercambiar el code por un token de Mercado Libre');
+    }
 
     if (!data.refresh_token) {
-      this.logger.warn(
+      throw new ServiceUnavailableException(
         'Mercado Libre no devolvió refresh_token: revisa que el flujo Refresh Token (offline_access) esté activo en el DevCenter',
       );
     }
 
-    await this.saveTokens(data, data.refresh_token ?? '');
+    await this.storeTokens(data, data.refresh_token);
     return this.getStatus();
   }
 
   async getStatus(): Promise<MercadoLibreAuthStatus> {
-    const tokens = await this.loadTokens();
-    if (!tokens) return { authorized: false };
+    const authorized = await this.tokenRepository.existsBy({ id: MERCADO_LIBRE_TOKEN_ID });
 
     return {
-      authorized: true,
-      user_id: tokens.user_id,
-      scope: tokens.scope,
-      access_token_expires_at: new Date(tokens.expires_at).toISOString(),
+      authorized,
+      access_token_expires_at: this.accessToken
+        ? new Date(this.accessToken.expiresAt).toISOString()
+        : undefined,
     };
   }
 
   async getValidToken(): Promise<string> {
-    const tokens = await this.loadTokens();
-    if (!tokens) {
-      throw new ServiceUnavailableException(
-        'Mercado Libre no está autorizado: abre GET /mercado-libre/auth/url y luego POST /mercado-libre/auth/exchange con el code',
-      );
+    if (this.accessToken && Date.now() < this.accessToken.expiresAt - SAFETY_MARGIN_MS) {
+      return this.accessToken.value;
     }
-
-    if (Date.now() < tokens.expires_at) return tokens.access_token;
     return this.refreshAccessToken();
   }
 
   invalidateAccessToken(): void {
-    if (this.tokens) this.tokens.expires_at = 0;
+    this.accessToken = null;
   }
 
   // Varias peticiones simultáneas pueden encontrar el token expirado; como el
@@ -124,27 +125,44 @@ export class MercadoLibreAuthService {
   }
 
   private async doRefresh(): Promise<string> {
-    const current = this.tokens!;
-    if (!current.refresh_token) {
+    const refreshToken = await this.loadRefreshToken();
+    if (!refreshToken) {
       throw new ServiceUnavailableException(
-        'El token de Mercado Libre expiró y no hay refresh_token: vuelve a autorizar con GET /mercado-libre/auth/url',
+        'Mercado Libre no está autorizado: abre GET /mercado-libre/auth/url y luego POST /mercado-libre/auth/exchange con el code',
       );
     }
 
-    this.logger.log('Renovando access_token de Mercado Libre con refresh_token');
-    const data = await this.requestToken(
-      { grant_type: 'refresh_token', refresh_token: current.refresh_token },
-      'No se pudo renovar el token de Mercado Libre: vuelve a autorizar con GET /mercado-libre/auth/url',
-    );
+    try {
+      return await this.refreshWith(refreshToken);
+    } catch (error) {
+      if (!(error instanceof TokenRequestError && error.code === 'invalid_grant')) {
+        throw new ServiceUnavailableException('No se pudo renovar el token de Mercado Libre; intenta más tarde');
+      }
+    }
 
-    await this.saveTokens(data, data.refresh_token ?? current.refresh_token);
+    // Otra instancia (p. ej. durante un despliegue) pudo renovar justo antes e invalidar el que leímos.
+    const latest = await this.loadRefreshToken();
+    if (!latest || latest === refreshToken) {
+      throw new ServiceUnavailableException(`El refresh_token de Mercado Libre ya no es válido: ${REAUTHORIZE_HINT}`);
+    }
+
+    this.logger.warn('El refresh_token cambió en la base durante la renovación; se reintenta una vez con el nuevo');
+    try {
+      return await this.refreshWith(latest);
+    } catch {
+      throw new ServiceUnavailableException(`No se pudo renovar el token de Mercado Libre: ${REAUTHORIZE_HINT}`);
+    }
+  }
+
+  private async refreshWith(refreshToken: string): Promise<string> {
+    this.logger.log('Renovando access_token de Mercado Libre con refresh_token');
+    const data = await this.requestToken({ grant_type: 'refresh_token', refresh_token: refreshToken });
+
+    await this.storeTokens(data, data.refresh_token ?? refreshToken);
     return data.access_token;
   }
 
-  private async requestToken(
-    params: Record<string, string>,
-    errorMessage: string,
-  ): Promise<TokenResponse> {
+  private async requestToken(params: Record<string, string>): Promise<TokenResponse> {
     const body = new URLSearchParams({
       ...params,
       client_id: this.configService.getOrThrow<string>('ML_CLIENT_ID'),
@@ -162,38 +180,31 @@ export class MercadoLibreAuthService {
       );
       return response.data;
     } catch (error) {
-      const detail = JSON.stringify((error as { response?: { data?: unknown } }).response?.data ?? String(error));
-      this.logger.error(`${errorMessage} (${params.grant_type}): ${detail}`);
-      throw new ServiceUnavailableException(errorMessage);
+      const detail = describeMercadoLibreError(error);
+      this.logger.error(formatMercadoLibreError('POST', `/oauth/token (${params.grant_type})`, detail));
+      throw new TokenRequestError(detail.code);
     }
   }
 
-  private async loadTokens(): Promise<StoredTokens | null> {
-    if (this.tokensLoaded) return this.tokens;
+  private async loadRefreshToken(): Promise<string | null> {
+    const row = await this.tokenRepository.findOneBy({ id: MERCADO_LIBRE_TOKEN_ID });
+    return row?.refreshToken ?? null;
+  }
 
+  // El refresh_token se guarda antes de usar el access_token: el anterior ya dejó de servir.
+  private async storeTokens(data: TokenResponse, refreshToken: string): Promise<void> {
     try {
-      this.tokens = JSON.parse(await readFile(this.tokensFile, 'utf8')) as StoredTokens;
+      await this.tokenRepository.upsert({ id: MERCADO_LIBRE_TOKEN_ID, refreshToken }, ['id']);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        this.logger.error(`No se pudo leer ${this.tokensFile}`, error);
-      }
-      this.tokens = null;
+      this.logger.error(
+        `No se pudo guardar el refresh_token de Mercado Libre en la base (${(error as Error).message}). ` +
+          `El access_token en memoria sigue siendo válido, pero al expirar o reiniciar la app habrá que ${REAUTHORIZE_HINT}`,
+      );
     }
 
-    this.tokensLoaded = true;
-    return this.tokens;
-  }
-
-  private async saveTokens(data: TokenResponse, refreshToken: string): Promise<void> {
-    this.tokens = {
-      access_token: data.access_token,
-      refresh_token: refreshToken,
-      expires_at: Date.now() + data.expires_in * 1000 - SAFETY_MARGIN_MS,
-      user_id: data.user_id,
-      scope: data.scope,
+    this.accessToken = {
+      value: data.access_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
     };
-    this.tokensLoaded = true;
-
-    await writeFile(this.tokensFile, JSON.stringify(this.tokens, null, 2), 'utf8');
   }
 }

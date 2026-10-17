@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Query, NotFoundException } from '@nestjs/common';
-import { Auth } from '../auth/decorators/auth.decorator.js';
+import { Admin } from '../auth/decorators/admin.decorator.js';
 import { MercadoLibreApiService } from './api/mercado-libre-api.service.js';
 import { MERCADO_LIBRE_CATEGORIES, findMercadoLibreCategory } from './api/mercado-libre-categories.js';
 import { MercadoLibreAuthService } from './auth/mercado-libre-auth.service.js';
@@ -14,19 +14,19 @@ export class MercadoLibreController {
   ) {}
 
   @Get('auth/url')
-  @Auth()
+  @Admin()
   getAuthorizationUrl() {
     return { url: this.authService.getAuthorizationUrl() };
   }
 
   @Post('auth/exchange')
-  @Auth()
+  @Admin()
   exchangeCode(@Body() { code }: ExchangeCodeDto) {
     return this.authService.exchangeCode(code);
   }
 
   @Get('auth/status')
-  @Auth()
+  @Admin()
   getAuthStatus() {
     return this.authService.getStatus();
   }
