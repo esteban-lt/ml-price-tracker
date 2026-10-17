@@ -2,6 +2,7 @@ import { firstValueFrom } from 'rxjs';
 import { HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { MercadoLibreAuthService } from '../auth/mercado-libre-auth.service.js';
+import { describeMercadoLibreError, formatMercadoLibreError } from '../mercado-libre-error.js';
 
 const API_URL = 'https://api.mercadolibre.com';
 const SITE_ID = 'MLM';
@@ -198,7 +199,7 @@ export class MercadoLibreApiService {
       }
 
       if (status !== HttpStatus.NOT_FOUND) {
-        this.logger.error(`Error en GET ${path} de Mercado Libre: ${JSON.stringify(data ?? String(error))}`);
+        this.logger.error(formatMercadoLibreError('GET', path, describeMercadoLibreError(error)));
       }
       throw new HttpException(
         { message: `Mercado Libre respondió con error en ${path}`, mercadoLibre: data },
