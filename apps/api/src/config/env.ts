@@ -21,4 +21,20 @@ export const env = Joi.object({
   }),
   // Correos con acceso a los endpoints de administración, separados por coma; vacío = nadie.
   ADMIN_EMAILS: Joi.string().allow('').default(''),
+  // Sin key (solo fuera de producción) los correos se registran en el log en lugar de enviarse.
+  RESEND_API_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().required(),
+    otherwise: Joi.string().allow(''),
+  }),
+  MAIL_FROM: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().required(),
+    otherwise: Joi.string().default('Nudge <onboarding@resend.dev>'),
+  }),
+  FRONTEND_URL: Joi.string().uri().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().required(),
+    otherwise: Joi.string().uri().default('http://localhost:5173'),
+  }),
 });
