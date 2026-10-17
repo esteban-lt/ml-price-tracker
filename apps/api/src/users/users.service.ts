@@ -5,6 +5,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { User } from './entities/user.entity.js';
+import { UserResponseDto } from './dto/user-response.dto.js';
+import { UserMapper } from './mappers/user.mapper.js';
 
 @Injectable()
 export class UsersService {
@@ -26,5 +28,11 @@ export class UsersService {
 
   async findByEmail(email: string): Promise<User | null> {
     return await this.usersRepository.findOne({ where: { email } });
+  }
+
+  async updateEmailNotifications(id: string, enabled: boolean): Promise<UserResponseDto> {
+    const user = await this.usersRepository.findOneByOrFail({ id });
+    user.emailNotifications = enabled;
+    return UserMapper.toResponse(await this.usersRepository.save(user));
   }
 }

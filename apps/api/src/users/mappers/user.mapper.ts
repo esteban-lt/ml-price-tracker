@@ -7,6 +7,8 @@ export class UserMapper {
       id: user.id,
       name: user.name,
       email: user.email,
+      emailVerified: user.emailVerifiedAt !== null,
+      emailNotifications: user.emailNotifications,
       createdAt: user.createdAt,
     }
   }
