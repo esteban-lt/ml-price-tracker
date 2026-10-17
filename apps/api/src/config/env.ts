@@ -8,6 +8,7 @@ export const env = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
   PORT: Joi.number().default(3000),
   DATABASE_URL: Joi.string().uri().required(),
+  TEST_DATABASE_URL: Joi.string().uri().optional(),
   JWT_SECRET: Joi.string().when('NODE_ENV', {
     is: 'production',
     then: Joi.string().min(32).required(),

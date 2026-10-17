@@ -81,16 +81,27 @@ Without `RESEND_API_KEY` (development only), emails are not sent: the API logs t
 
 ## Database migrations
 
-The schema is managed only by migrations: `synchronize` is off in every environment, so every entity change needs a new migration. The scripts build the project first and use the compiled data source (`dist/config/data-source.js`), which reads `DATABASE_URL` from `apps/api/.env` or from the environment.
+The schema is managed only by migrations (`apps/api/migrations`): `synchronize` is off in every environment, so every entity change needs a new migration. The scripts build the project first and use the compiled data source (`dist/config/data-source.js`), which reads `DATABASE_URL` from `apps/api/.env` or from the environment.
 
 | Command (from `apps/api`) | What it does |
 |---|---|
-| `bun run migration:generate src/migrations/AddSomething` | Compares the entities with the database and writes a new migration |
+| `bun run migration:generate migrations/AddSomething` | Compares the entities with the database and writes a new migration |
 | `bun run migration:run` | Applies the pending migrations |
 | `bun run migration:revert` | Reverts the last applied migration |
 | `bun run migration:show` | Lists migrations (`[X]` applied, `[ ]` pending) |
 
 To migrate production, point `DATABASE_URL` at the production database and run `bun run migration:run` before deploying the new version.
+
+## Tests
+
+Tests live in `apps/api/test`, mirroring the structure of `src`. Mercado Libre and Resend are always replaced by test doubles, so no credentials or real emails are needed.
+
+| Command (from `apps/api`) | What it runs |
+|---|---|
+| `bun run test` | Unit tests (`*.spec.ts`), no database |
+| `bun run test:e2e` | Integration tests (`*.e2e-spec.ts`) against `TEST_DATABASE_URL` |
+
+The integration suite applies the project migrations to `TEST_DATABASE_URL` and wipes its data before every test, so it must point to a database used only for tests (it refuses to run if it matches `DATABASE_URL`).
 
 ## Production
 
