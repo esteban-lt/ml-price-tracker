@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '../../src/app.module.js';
 import { setupApp } from '../../src/app.setup.js';
+import { SessionsService } from '../../src/auth/sessions.service.js';
 import { throttlerConfig } from '../../src/config/throttler.js';
 import { MailService } from '../../src/mail/mail.service.js';
 import { MercadoLibreApiService } from '../../src/mercado-libre/api/mercado-libre-api.service.js';
@@ -19,7 +20,8 @@ export interface TestApp {
   dataSource: DataSource;
   mail: FakeMailService;
   mercadoLibre: FakeMercadoLibreApi;
-  tokenFor(user: User): string;
+  // Access token de una sesión real (crea la fila en sessions), como tras un login.
+  tokenFor(user: User): Promise<string>;
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -46,13 +48,17 @@ export async function createTestApp({ throttle = false } = {}): Promise<TestApp>
 
   const dataSource = app.get(DataSource);
   const jwtService = app.get(JwtService);
+  const sessionsService = app.get(SessionsService);
 
   return {
     app,
     dataSource,
     mail,
     mercadoLibre,
-    tokenFor: (user) => jwtService.sign({ id: user.id, name: user.name, email: user.email }),
+    tokenFor: async (user) => {
+      const { sid } = await sessionsService.create(user.id, {});
+      return jwtService.sign({ sub: user.id, sid });
+    },
     reset: async () => {
       mail.reset();
       mercadoLibre.reset();

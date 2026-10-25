@@ -1,5 +1,5 @@
+// sub: id del usuario. sid: familia de la sesión (sessions.family_id).
 export interface JwtPayload {
-  id: string;
-  name: string;
-  email: string;
+  sub: string;
+  sid: string;
 }

@@ -5,11 +5,19 @@ import { JwtService } from '@nestjs/jwt';
 
 import { UsersService } from '../users/users.service.js';
 import { CreateUserDto } from '../users/dto/create-user.dto.js';
+import { User } from '../users/entities/user.entity.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AuthResponseDto } from './dto/auth-response.dto.js';
 import { JwtPayload } from './interfaces/jwt-payload.js';
 import { UserMapper } from '../users/mappers/user.mapper.js';
 import { EmailVerificationService } from './email-verification.service.js';
+import { IssuedRefreshToken, IssuedSession, SessionClient, SessionsService } from './sessions.service.js';
+
+// El cuerpo va en la respuesta; el refresh token, en la cookie.
+export interface AuthResult {
+  body: AuthResponseDto;
+  refreshToken: IssuedRefreshToken;
+}
 
 @Injectable()
 export class AuthService {
@@ -17,9 +25,10 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly sessionsService: SessionsService,
   ) {}
 
-  async register(createUserDto: CreateUserDto): Promise<AuthResponseDto> {
+  async register(createUserDto: CreateUserDto, client: SessionClient): Promise<AuthResult> {
     const { password } = createUserDto;
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -29,20 +38,10 @@ export class AuthService {
     });
     this.emailVerificationService.sendCodeInBackground(user);
 
-    const payload: JwtPayload = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    };
-    const token = await this.jwtService.signAsync(payload);
-
-    return {
-      user: UserMapper.toResponse(user),
-      token,
-    };
+    return this.authenticate(user, await this.sessionsService.create(user.id, client));
   }
 
-  async login(loginDto: LoginDto): Promise<AuthResponseDto> {
+  async login(loginDto: LoginDto, client: SessionClient): Promise<AuthResult> {
     const { email, password } = loginDto;
 
     const user = await this.usersService.findByEmail(email);
@@ -51,16 +50,36 @@ export class AuthService {
     const passwordMatches = await bcrypt.compare(password, user.password);
     if(!passwordMatches) throw new UnauthorizedException('Invalid credentials');
 
-    const payload: JwtPayload = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    };
+    return this.authenticate(user, await this.sessionsService.create(user.id, client));
+  }
+
+  async refresh(token: string, client: SessionClient): Promise<AuthResult> {
+    const { userId, ...session } = await this.sessionsService.rotate(token, client);
+
+    const user = await this.usersService.findById(userId);
+    if(!user) throw new UnauthorizedException('Invalid session');
+
+    return this.authenticate(user, session);
+  }
+
+  logout(token: string): Promise<void> {
+    return this.sessionsService.revoke(token);
+  }
+
+  logoutAll(userId: string): Promise<void> {
+    return this.sessionsService.revokeAll(userId);
+  }
+
+  private async authenticate(user: User, { sid, refreshToken }: IssuedSession): Promise<AuthResult> {
+    const payload: JwtPayload = { sub: user.id, sid };
     const token = await this.jwtService.signAsync(payload);
 
     return {
-      user: UserMapper.toResponse(user),
-      token,
+      body: {
+        user: UserMapper.toResponse(user),
+        token,
+      },
+      refreshToken,
     };
   }
 }

@@ -25,7 +25,7 @@ describe('Respuestas sin secretos (e2e)', () => {
     await t.close();
   });
 
-  it('registro, login, perfil, seguimientos, alertas, productos y estado de Mercado Libre', async () => {
+  it('registro, login, refresh, perfil, seguimientos, alertas, productos y estado de Mercado Libre', async () => {
     const http = () => request(t.app.getHttpServer());
     const bodies: unknown[] = [];
     const collect = (response: request.Response) => {
@@ -40,6 +40,10 @@ describe('Respuestas sin secretos (e2e)', () => {
       await http().post('/auth/login').send({ email: TEST_ADMIN_EMAIL, password: PASSWORD }).expect(HttpStatus.CREATED),
     );
     const auth = { Authorization: `Bearer ${login.token}` };
+    const loginResponse = collect(await http().post('/auth/login').send({ email: TEST_ADMIN_EMAIL, password: PASSWORD }));
+    const refreshCookie = (loginResponse.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
+    const refreshToken = refreshCookie.split('=')[1];
+    collect(await http().post('/auth/refresh').set('Cookie', refreshCookie).expect(HttpStatus.OK));
 
     const user = await t.dataSource.getRepository(User).findOneByOrFail({ email: TEST_ADMIN_EMAIL });
     const product = await createProduct(t.dataSource);
@@ -63,7 +67,7 @@ describe('Respuestas sin secretos (e2e)', () => {
     const serialized = JSON.stringify(bodies);
     expect(bodies.length).toBeGreaterThanOrEqual(10);
     expect(serialized).not.toMatch(FORBIDDEN_KEYS);
-    for (const secret of [PASSWORD, user.password, codeHash, ML_REFRESH_TOKEN]) {
+    for (const secret of [PASSWORD, user.password, codeHash, ML_REFRESH_TOKEN, refreshToken]) {
       expect(serialized).not.toContain(secret);
     }
   });

@@ -28,7 +28,7 @@ describe('PriceHistoryController (e2e)', () => {
 
   beforeEach(async () => {
     await t.reset();
-    auth = { Authorization: `Bearer ${t.tokenFor(await createUser(t.dataSource))}` };
+    auth = { Authorization: `Bearer ${await t.tokenFor(await createUser(t.dataSource))}` };
     product = await createProduct(t.dataSource);
   });
 

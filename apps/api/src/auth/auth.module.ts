@@ -9,10 +9,13 @@ import { MailModule } from '../mail/mail.module.js';
 import { User } from '../users/entities/user.entity.js';
 import { UsersModule } from '../users/users.module.js';
 import { EmailVerificationCode } from './entities/email-verification-code.entity.js';
+import { Session } from './entities/session.entity.js';
 import { EmailVerificationService } from './email-verification.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
+import { SessionsService } from './sessions.service.js';
+import { RefreshTokenCookie } from './refresh-token-cookie.js';
 
 @Module({
   controllers: [AuthController],
@@ -25,15 +28,18 @@ import { JwtStrategy } from './strategies/jwt.strategy.js';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow('JWT_SECRET'),
         signOptions: {
+          algorithm: 'HS256',
           expiresIn: configService.getOrThrow('JWT_EXPIRES_IN'),
+          issuer: configService.getOrThrow('JWT_ISSUER'),
+          audience: configService.getOrThrow('JWT_AUDIENCE'),
         },
       }),
     }),
 
-    TypeOrmModule.forFeature([EmailVerificationCode, User]),
+    TypeOrmModule.forFeature([EmailVerificationCode, Session, User]),
     MailModule,
     UsersModule,
   ],
-  providers: [AuthService, JwtStrategy, EmailVerificationService],
+  providers: [AuthService, JwtStrategy, EmailVerificationService, SessionsService, RefreshTokenCookie],
 })
 export class AuthModule {}

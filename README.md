@@ -14,7 +14,7 @@ Prices on Mercado Libre change often, and the same product is usually sold by se
 - **Trackable products only** — results include only catalog products with active sellers, which are the ones that can be followed.
 - **Price tracking** — follow a product with a target price or a percentage drop; prices are checked periodically and stored as history.
 - **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold (verified email required, can be turned off).
-- **User accounts** — registration and login with JWT, and email verification with a 6-digit code.
+- **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices), and email verification with a 6-digit code.
 
 ### Coming soon
 
@@ -110,14 +110,14 @@ Set `NODE_ENV=production`. The API refuses to start if any of these is missing o
 | Variable | Notes |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` · `JWT_EXPIRES_IN` | Secret of at least 32 characters · token lifetime (e.g. `2h`) |
+| `JWT_SECRET` | Secret of at least 32 characters |
 | `VERIFICATION_CODE_SECRET` | At least 32 characters |
 | `ML_CLIENT_ID` · `ML_CLIENT_SECRET` | Mercado Libre app credentials |
 | `CORS_ORIGIN` | Frontend origin(s), comma separated, no `*` |
 | `FRONTEND_URL` | Used in email links |
 | `RESEND_API_KEY` · `MAIL_FROM` | `MAIL_FROM` must use a domain verified in Resend |
 
-`PORT` is provided by the host (Render sets it). `ADMIN_EMAILS` is optional. `GET /health` is a lightweight endpoint (no database access) for uptime checks.
+`PORT` is provided by the host (Render sets it). `ADMIN_EMAILS` is optional. Sessions default to a 15-minute access token (`JWT_EXPIRES_IN`, signed with the `JWT_ISSUER` and `JWT_AUDIENCE` claims) and a 30-day refresh token (`REFRESH_TOKEN_EXPIRES_IN_DAYS`); set `REFRESH_COOKIE_SAME_SITE=none` only if the frontend is served from a different site than the API. `GET /health` is a lightweight endpoint (no database access) for uptime checks.
 
 ## Docker
 
@@ -141,7 +141,10 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/auth/register` · `/auth/login` | Create an account / get a JWT |
+| `POST` | `/auth/register` · `/auth/login` | Create an account / log in: access token in the body, refresh token in a cookie |
+| `POST` | `/auth/refresh` | Rotate the refresh token and get a new access token |
+| `POST` | `/auth/logout` · `/auth/logout-all` | End the current session / every session of the user |
+| `GET` | `/auth/me` | Profile of the logged-in user |
 | `POST` | `/auth/verify-email` · `/auth/resend-verification` | Verify the email with the 6-digit code / request a new one |
 | `GET` | `/mercado-libre/categories` | List available categories |
 | `GET` | `/mercado-libre/products/:category` | Best sellers in a category (e.g. `computers`) |
@@ -151,4 +154,4 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 | `PATCH` | `/users/me/email-notifications` | Turn alert emails on or off |
 | `GET` | `/mercado-libre/auth/status` | Mercado Libre connection status (admin) |
 
-Every endpoint except registration, login, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The `/mercado-libre/auth/*` endpoints also require a verified email listed in `ADMIN_EMAILS`.
+Every endpoint except registration, login, refresh, logout, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. The `/mercado-libre/auth/*` endpoints also require a verified email listed in `ADMIN_EMAILS`.

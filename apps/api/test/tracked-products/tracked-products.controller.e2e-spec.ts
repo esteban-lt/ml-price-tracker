@@ -28,7 +28,7 @@ describe('TrackedProductsController (e2e)', () => {
 
   beforeEach(async () => {
     await t.reset();
-    token = t.tokenFor(await createUser(t.dataSource));
+    token = await t.tokenFor(await createUser(t.dataSource));
   });
 
   it('guarda el precio actual como precio de referencia', async () => {

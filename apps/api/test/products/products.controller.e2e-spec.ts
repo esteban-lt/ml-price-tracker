@@ -25,7 +25,7 @@ describe('ProductsController (e2e)', () => {
   beforeEach(async () => {
     await t.reset();
     const user = await createUser(t.dataSource);
-    auth = { Authorization: `Bearer ${t.tokenFor(user)}` };
+    auth = { Authorization: `Bearer ${await t.tokenFor(user)}` };
   });
 
   it('rechaza peticiones sin token', async () => {
