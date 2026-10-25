@@ -1,3 +1,4 @@
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,9 +19,12 @@ export function setupApp(app: NestExpressApplication): void {
       .filter(Boolean),
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // Necesario para que el navegador envíe y guarde la cookie del refresh token.
+    credentials: true,
   });
 
   app.use(helmet());
+  app.use(cookieParser());
 
   app.useGlobalPipes(
     new ValidationPipe({
