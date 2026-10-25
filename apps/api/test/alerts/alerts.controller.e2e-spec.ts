@@ -18,7 +18,7 @@ describe('AlertsController (e2e): bandeja de alertas', () => {
   let owner: User;
   let other: User;
 
-  const as = (user: User) => ({ Authorization: `Bearer ${t.tokenFor(user)}` });
+  const as = async (user: User) => ({ Authorization: `Bearer ${await t.tokenFor(user)}` });
   const http = () => request(t.app.getHttpServer());
 
   // Crea `count` alertas para `user`, la más reciente al final.
@@ -33,7 +33,7 @@ describe('AlertsController (e2e): bandeja de alertas', () => {
     return alerts;
   };
   const unreadCount = async (user: User) =>
-    (await http().get('/alerts/unread-count').set(as(user)).expect(HttpStatus.OK)).body.count;
+    (await http().get('/alerts/unread-count').set(await as(user)).expect(HttpStatus.OK)).body.count;
 
   beforeAll(async () => {
     t = await createTestApp();
@@ -53,8 +53,8 @@ describe('AlertsController (e2e): bandeja de alertas', () => {
     const alerts = await givenAlerts(owner, 3);
     await givenAlerts(other, 2);
 
-    const page1 = await http().get('/alerts?limit=2').set(as(owner)).expect(HttpStatus.OK);
-    const page2 = await http().get('/alerts?limit=2&page=2').set(as(owner)).expect(HttpStatus.OK);
+    const page1 = await http().get('/alerts?limit=2').set(await as(owner)).expect(HttpStatus.OK);
+    const page2 = await http().get('/alerts?limit=2&page=2').set(await as(owner)).expect(HttpStatus.OK);
 
     expect(page1.body.total).toBe(3);
     expect(page1.body.items.map((alert: Alert) => alert.id)).toEqual([alerts[2].id, alerts[1].id]);
@@ -67,16 +67,16 @@ describe('AlertsController (e2e): bandeja de alertas', () => {
     await t.dataSource.getRepository(Alert).update(first.id, { readAt: new Date() });
 
     expect(await unreadCount(owner)).toBe(2);
-    const unread = await http().get('/alerts?unread=true').set(as(owner)).expect(HttpStatus.OK);
+    const unread = await http().get('/alerts?unread=true').set(await as(owner)).expect(HttpStatus.OK);
     expect(unread.body.total).toBe(2);
   });
 
   it('marcar como leída es idempotente', async () => {
     const [alert] = await givenAlerts(owner, 1);
 
-    await http().patch(`/alerts/${alert.id}/read`).set(as(owner)).expect(HttpStatus.NO_CONTENT);
+    await http().patch(`/alerts/${alert.id}/read`).set(await as(owner)).expect(HttpStatus.NO_CONTENT);
     const { readAt } = await t.dataSource.getRepository(Alert).findOneByOrFail({ id: alert.id });
-    await http().patch(`/alerts/${alert.id}/read`).set(as(owner)).expect(HttpStatus.NO_CONTENT);
+    await http().patch(`/alerts/${alert.id}/read`).set(await as(owner)).expect(HttpStatus.NO_CONTENT);
 
     const after = await t.dataSource.getRepository(Alert).findOneByOrFail({ id: alert.id });
     expect(readAt).not.toBeNull();
@@ -86,7 +86,7 @@ describe('AlertsController (e2e): bandeja de alertas', () => {
   it('la alerta de otro usuario responde 404', async () => {
     const [foreign] = await givenAlerts(other, 1);
 
-    await http().patch(`/alerts/${foreign.id}/read`).set(as(owner)).expect(HttpStatus.NOT_FOUND);
+    await http().patch(`/alerts/${foreign.id}/read`).set(await as(owner)).expect(HttpStatus.NOT_FOUND);
     expect(await unreadCount(other)).toBe(1);
   });
 
@@ -94,7 +94,7 @@ describe('AlertsController (e2e): bandeja de alertas', () => {
     await givenAlerts(owner, 2);
     await givenAlerts(other, 2);
 
-    await http().patch('/alerts/read-all').set(as(owner)).expect(HttpStatus.NO_CONTENT);
+    await http().patch('/alerts/read-all').set(await as(owner)).expect(HttpStatus.NO_CONTENT);
 
     expect(await unreadCount(owner)).toBe(0);
     expect(await unreadCount(other)).toBe(2);

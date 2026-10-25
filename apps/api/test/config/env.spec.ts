@@ -44,6 +44,24 @@ describe('validación de variables de entorno', () => {
     expect(errorOf({ ...production, CORS_ORIGIN: '*' })).toContain('CORS_ORIGIN');
   });
 
+  it('las sesiones usan 15 minutos, 30 días y SameSite=lax por defecto', () => {
+    const { value } = env.validate(without('JWT_EXPIRES_IN'));
+    expect(value).toMatchObject({
+      JWT_EXPIRES_IN: '15m',
+      JWT_ISSUER: 'nudge-api',
+      JWT_AUDIENCE: 'nudge-app',
+      REFRESH_TOKEN_EXPIRES_IN_DAYS: 30,
+      REFRESH_COOKIE_SAME_SITE: 'lax',
+    });
+  });
+
+  it('rechaza duración de sesión, SameSite, iss o aud inválidos', () => {
+    expect(errorOf({ ...production, REFRESH_TOKEN_EXPIRES_IN_DAYS: 0 })).toContain('REFRESH_TOKEN_EXPIRES_IN_DAYS');
+    expect(errorOf({ ...production, REFRESH_COOKIE_SAME_SITE: 'always' })).toContain('REFRESH_COOKIE_SAME_SITE');
+    expect(errorOf({ ...production, JWT_ISSUER: '' })).toContain('JWT_ISSUER');
+    expect(errorOf({ ...production, JWT_AUDIENCE: '' })).toContain('JWT_AUDIENCE');
+  });
+
   it('fuera de producción RESEND_API_KEY es opcional', () => {
     expect(errorOf({ ...without('RESEND_API_KEY'), NODE_ENV: 'development' })).toBeUndefined();
   });

@@ -32,6 +32,7 @@ describe('setupApp (e2e): configuración de arranque', () => {
       expect(response.headers['access-control-allow-origin']).toBe(TEST_FRONTEND_ORIGIN);
       expect(response.headers['access-control-allow-headers']).toMatch(/authorization/i);
       expect(response.headers['access-control-allow-methods']).toMatch(/PATCH/);
+      expect(response.headers['access-control-allow-credentials']).toBe('true');
     });
 
     it('un origen no permitido no recibe headers de CORS', async () => {
@@ -58,7 +59,7 @@ describe('setupApp (e2e): configuración de arranque', () => {
 
     beforeEach(async () => {
       await t.reset();
-      auth = { Authorization: `Bearer ${t.tokenFor(await createUser(t.dataSource))}` };
+      auth = { Authorization: `Bearer ${await t.tokenFor(await createUser(t.dataSource))}` };
     });
 
     it('rechaza campos no permitidos', async () => {
