@@ -23,11 +23,12 @@ export interface MercadoLibreErrorDetail {
   status?: number;
   code?: string;
   message: string;
+  retryAfterMs?: number;
 }
 
 interface HttpErrorLike {
   message?: string;
-  response?: { status?: number; data?: unknown };
+  response?: { status?: number; data?: unknown; headers?: Record<string, unknown> };
 }
 
 export function describeMercadoLibreError(error: unknown): MercadoLibreErrorDetail {
@@ -38,7 +39,18 @@ export function describeMercadoLibreError(error: unknown): MercadoLibreErrorDeta
     status: response?.status,
     code: typeof data.error === 'string' ? data.error : undefined,
     message: typeof data.message === 'string' ? data.message : (message ?? 'Error desconocido'),
+    retryAfterMs: parseRetryAfter(response?.headers?.['retry-after']),
   };
+}
+
+function parseRetryAfter(value: unknown): number | undefined {
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
 }
 
 export function formatMercadoLibreError(method: string, path: string, detail: MercadoLibreErrorDetail): string {
