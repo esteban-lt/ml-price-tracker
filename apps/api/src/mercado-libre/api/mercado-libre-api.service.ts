@@ -1,7 +1,10 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { firstValueFrom } from 'rxjs';
 import { HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { MercadoLibreAuthService } from '../auth/mercado-libre-auth.service.js';
+import { MercadoLibreCircuitBreaker } from '../mercado-libre-circuit-breaker.js';
+import { isServiceFailure, retryDelayMs } from '../mercado-libre-retry-policy.js';
 import {
   describeMercadoLibreError,
   formatMercadoLibreError,
@@ -72,6 +75,7 @@ export class MercadoLibreApiService {
   constructor(
     private readonly httpService: HttpService,
     private readonly authService: MercadoLibreAuthService,
+    private readonly circuitBreaker: MercadoLibreCircuitBreaker,
   ) {}
 
   async getProduct(productId: string): Promise<MercadoLibreProduct> {
@@ -189,28 +193,45 @@ export class MercadoLibreApiService {
     }
   }
 
-  private async request<T>(path: string, isRetry = false): Promise<T> {
-    const token = await this.authService.getValidToken();
+  private async request<T>(path: string): Promise<T> {
+    let retries = 0;
+    let tokenRenewed = false;
 
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get<T>(`${API_URL}${path}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      );
-      return response.data;
-    } catch (error) {
-      const detail = describeMercadoLibreError(error);
+    while (true) {
+      this.circuitBreaker.assertClosed();
+      const token = await this.authService.getValidToken();
 
-      if (detail.status === HttpStatus.UNAUTHORIZED && !isRetry) {
-        this.authService.invalidateAccessToken();
-        return this.request<T>(path, true);
+      try {
+        const response = await firstValueFrom(
+          this.httpService.get<T>(`${API_URL}${path}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        );
+        this.circuitBreaker.recordSuccess();
+        return response.data;
+      } catch (error) {
+        const detail = describeMercadoLibreError(error);
+
+        if (detail.status === HttpStatus.UNAUTHORIZED && !tokenRenewed) {
+          tokenRenewed = true;
+          this.authService.invalidateAccessToken();
+          continue;
+        }
+
+        const delayMs = retryDelayMs(detail, retries);
+        if (delayMs !== null) {
+          retries++;
+          this.logger.warn(`${formatMercadoLibreError('GET', path, detail)}; reintento ${retries} en ${delayMs} ms`);
+          await sleep(delayMs);
+          continue;
+        }
+
+        if (isServiceFailure(detail)) this.circuitBreaker.recordFailure();
+        if (detail.status !== HttpStatus.NOT_FOUND) {
+          this.logger.error(formatMercadoLibreError('GET', path, detail));
+        }
+        throw new MercadoLibreRequestError(detail.status);
       }
-
-      if (detail.status !== HttpStatus.NOT_FOUND) {
-        this.logger.error(formatMercadoLibreError('GET', path, detail));
-      }
-      throw new MercadoLibreRequestError(detail.status);
     }
   }
 }
