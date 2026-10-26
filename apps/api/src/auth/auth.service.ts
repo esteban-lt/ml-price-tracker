@@ -8,7 +8,14 @@ import { CreateUserDto } from '../users/dto/create-user.dto.js';
 import { User } from '../users/entities/user.entity.js';
 import { LoginDto } from './dto/login.dto.js';
 import { AuthResponseDto } from './dto/auth-response.dto.js';
+import { EmailVerificationRequiredDto } from './dto/email-verification-required.dto.js';
 import { JwtPayload } from './interfaces/jwt-payload.js';
+import { EmailVerificationTokenPayload } from './interfaces/email-verification-token-payload.js';
+import { EmailNotVerifiedException } from './exceptions/email-not-verified.exception.js';
+import {
+  EMAIL_VERIFICATION_TOKEN_AUDIENCE,
+  EMAIL_VERIFICATION_TOKEN_EXPIRES_IN,
+} from './email-verification-token.constants.js';
 import { UserMapper } from '../users/mappers/user.mapper.js';
 import { EmailVerificationService } from './email-verification.service.js';
 import { IssuedRefreshToken, IssuedSession, SessionClient, SessionsService } from './sessions.service.js';
@@ -28,7 +35,7 @@ export class AuthService {
     private readonly sessionsService: SessionsService,
   ) {}
 
-  async register(createUserDto: CreateUserDto, client: SessionClient): Promise<AuthResult> {
+  async register(createUserDto: CreateUserDto): Promise<EmailVerificationRequiredDto> {
     const { password } = createUserDto;
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -38,7 +45,10 @@ export class AuthService {
     });
     this.emailVerificationService.sendCodeInBackground(user);
 
-    return this.authenticate(user, await this.sessionsService.create(user.id, client));
+    return {
+      user: UserMapper.toResponse(user),
+      verificationToken: await this.signEmailVerificationToken(user),
+    };
   }
 
   async login(loginDto: LoginDto, client: SessionClient): Promise<AuthResult> {
@@ -50,6 +60,13 @@ export class AuthService {
     const passwordMatches = await bcrypt.compare(password, user.password);
     if(!passwordMatches) throw new UnauthorizedException('Invalid credentials');
 
+    if(!user.emailVerifiedAt) throw new EmailNotVerifiedException(await this.signEmailVerificationToken(user));
+
+    return this.authenticate(user, await this.sessionsService.create(user.id, client));
+  }
+
+  async verifyEmail(userId: string, code: string, client: SessionClient): Promise<AuthResult> {
+    const user = await this.emailVerificationService.verify(userId, code);
     return this.authenticate(user, await this.sessionsService.create(user.id, client));
   }
 
@@ -68,6 +85,14 @@ export class AuthService {
 
   logoutAll(userId: string): Promise<void> {
     return this.sessionsService.revokeAll(userId);
+  }
+
+  private signEmailVerificationToken(user: User): Promise<string> {
+    const payload: EmailVerificationTokenPayload = { sub: user.id };
+    return this.jwtService.signAsync(payload, {
+      audience: EMAIL_VERIFICATION_TOKEN_AUDIENCE,
+      expiresIn: EMAIL_VERIFICATION_TOKEN_EXPIRES_IN,
+    });
   }
 
   private async authenticate(user: User, { sid, refreshToken }: IssuedSession): Promise<AuthResult> {
