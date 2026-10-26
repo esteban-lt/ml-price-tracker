@@ -13,8 +13,8 @@ Prices on Mercado Libre change often, and the same product is usually sold by se
 - **Lowest price across sellers** — price, discount and number of sellers for each product.
 - **Trackable products only** — results include only catalog products with active sellers, which are the ones that can be followed.
 - **Price tracking** — follow a product with a target price or a percentage drop; prices are checked periodically and stored as history.
-- **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold (verified email required, can be turned off).
-- **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices), and email verification with a 6-digit code.
+- **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold (can be turned off).
+- **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices). Verifying the email with a 6-digit code is required before the first session.
 
 ### Coming soon
 
@@ -69,7 +69,7 @@ The API integrates with the official [Mercado Libre API](https://developers.merc
    bun run start:dev
    ```
 
-5. **Link your Mercado Libre account (one time only).** Your email must be listed in `ADMIN_EMAILS` and verified. Log in to get a JWT, call `GET /mercado-libre/auth/url`, open the returned URL, then send the `code` from the callback to `POST /mercado-libre/auth/exchange`.
+5. **Link your Mercado Libre account (one time only).** Your email must be listed in `ADMIN_EMAILS`. Log in to get a JWT, call `GET /mercado-libre/auth/url`, open the returned URL, then send the `code` from the callback to `POST /mercado-libre/auth/exchange`.
 
 6. **Run the frontend:**
 
@@ -141,11 +141,12 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/auth/register` · `/auth/login` | Create an account / log in: access token in the body, refresh token in a cookie |
+| `POST` | `/auth/register` | Create an account and send the verification code; returns a `verificationToken`, not a session |
+| `POST` | `/auth/login` | Log in: access token in the body, refresh token in a cookie. An unverified account gets `403` with `code: "EMAIL_NOT_VERIFIED"` and a new `verificationToken` |
 | `POST` | `/auth/refresh` | Rotate the refresh token and get a new access token |
 | `POST` | `/auth/logout` · `/auth/logout-all` | End the current session / every session of the user |
 | `GET` | `/auth/me` | Profile of the logged-in user |
-| `POST` | `/auth/verify-email` · `/auth/resend-verification` | Verify the email with the 6-digit code / request a new one |
+| `POST` | `/auth/verify-email` · `/auth/resend-verification` | Verify the email with the 6-digit code and open the first session / request a new code. Both take the `verificationToken` as `Authorization: Bearer` |
 | `GET` | `/mercado-libre/categories` | List available categories |
 | `GET` | `/mercado-libre/products/:category` | Best sellers in a category (e.g. `computers`) |
 | `GET` | `/mercado-libre/products?q=&page=` | Search the catalog |
@@ -154,4 +155,4 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 | `PATCH` | `/users/me/email-notifications` | Turn alert emails on or off |
 | `GET` | `/mercado-libre/auth/status` | Mercado Libre connection status (admin) |
 
-Every endpoint except registration, login, refresh, logout, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. The `/mercado-libre/auth/*` endpoints also require a verified email listed in `ADMIN_EMAILS`.
+Every endpoint except registration, login, refresh, logout, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. Only verified accounts can get an access token. The `verificationToken` (30 minutes) only works on `/auth/verify-email` and `/auth/resend-verification`. The `/mercado-libre/auth/*` endpoints also require an email listed in `ADMIN_EMAILS`.
