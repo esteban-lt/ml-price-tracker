@@ -14,6 +14,7 @@ import { EmailVerificationService } from './email-verification.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
+import { EmailVerificationStrategy } from './strategies/email-verification.strategy.js';
 import { SessionsService } from './sessions.service.js';
 import { RefreshTokenCookie } from './refresh-token-cookie.js';
 
@@ -40,6 +41,13 @@ import { RefreshTokenCookie } from './refresh-token-cookie.js';
     MailModule,
     UsersModule,
   ],
-  providers: [AuthService, JwtStrategy, EmailVerificationService, SessionsService, RefreshTokenCookie],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    EmailVerificationStrategy,
+    EmailVerificationService,
+    SessionsService,
+    RefreshTokenCookie,
+  ],
 })
 export class AuthModule {}
