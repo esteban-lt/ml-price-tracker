@@ -30,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: Partial<JwtPayload>) {
     if(!isUUID(payload.sub) || !isUUID(payload.sid)) throw new UnauthorizedException('Invalid session');
 
-    const user = await this.sessionsService.findUserWithActiveSession(payload.sub!, payload.sid!);
+    const user = await this.sessionsService.findVerifiedUserWithActiveSession(payload.sub!, payload.sid!);
     if(!user) throw new UnauthorizedException('Invalid session');
     return UserMapper.toResponse(user);
   }
