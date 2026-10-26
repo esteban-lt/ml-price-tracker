@@ -1,3 +1,5 @@
+import { CronJob } from 'cron';
+
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
@@ -5,7 +7,6 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { PriceRefreshService } from './price-refresh.service.js';
 
 const JOB_NAME = 'price-refresh';
-const MINUTE_IN_MS = 60 * 1000;
 
 @Injectable()
 export class PriceRefreshScheduler implements OnModuleInit {
@@ -23,10 +24,12 @@ export class PriceRefreshScheduler implements OnModuleInit {
       return;
     }
 
-    const minutes = this.configService.getOrThrow<number>('PRICE_REFRESH_INTERVAL_MINUTES');
-    const interval = setInterval(() => void this.priceRefreshService.run(), minutes * MINUTE_IN_MS);
+    const cronTime = this.configService.getOrThrow<string>('PRICE_REFRESH_CRON');
+    const timeZone = this.configService.getOrThrow<string>('PRICE_REFRESH_TIMEZONE');
+    const job = CronJob.from({ cronTime, timeZone, onTick: () => void this.priceRefreshService.run() });
 
-    this.schedulerRegistry.addInterval(JOB_NAME, interval);
-    this.logger.log(`Actualización automática de precios programada cada ${minutes} minutos`);
+    this.schedulerRegistry.addCronJob(JOB_NAME, job);
+    job.start();
+    this.logger.log(`Actualización automática de precios programada con "${cronTime}" (${timeZone})`);
   }
 }
