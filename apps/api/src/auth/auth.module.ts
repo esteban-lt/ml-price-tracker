@@ -10,6 +10,7 @@ import { User } from '../users/entities/user.entity.js';
 import { UsersModule } from '../users/users.module.js';
 import { EmailVerificationCode } from './entities/email-verification-code.entity.js';
 import { Session } from './entities/session.entity.js';
+import { PasswordResetToken } from './entities/password-reset-token.entity.js';
 import { EmailVerificationService } from './email-verification.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
@@ -17,6 +18,8 @@ import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { EmailVerificationStrategy } from './strategies/email-verification.strategy.js';
 import { SessionsService } from './sessions.service.js';
 import { RefreshTokenCookie } from './refresh-token-cookie.js';
+import { PasswordHasher } from './password-hasher.js';
+import { PasswordResetService } from './password-reset.service.js';
 
 @Module({
   controllers: [AuthController],
@@ -37,7 +40,7 @@ import { RefreshTokenCookie } from './refresh-token-cookie.js';
       }),
     }),
 
-    TypeOrmModule.forFeature([EmailVerificationCode, Session, User]),
+    TypeOrmModule.forFeature([EmailVerificationCode, PasswordResetToken, Session, User]),
     MailModule,
     UsersModule,
   ],
@@ -48,6 +51,8 @@ import { RefreshTokenCookie } from './refresh-token-cookie.js';
     EmailVerificationService,
     SessionsService,
     RefreshTokenCookie,
+    PasswordHasher,
+    PasswordResetService,
   ],
 })
 export class AuthModule {}
