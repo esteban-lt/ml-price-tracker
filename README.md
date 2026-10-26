@@ -14,7 +14,7 @@ Prices on Mercado Libre change often, and the same product is usually sold by se
 - **Trackable products only** — results include only catalog products with active sellers, which are the ones that can be followed.
 - **Price tracking** — follow a product with a target price or a percentage drop; prices are checked periodically and stored as history.
 - **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold (can be turned off).
-- **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices). Verifying the email with a 6-digit code is required before the first session.
+- **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices). Verifying the email with a 6-digit code is required before the first session. Password recovery by email link, password change and account deletion.
 
 ### Coming soon
 
@@ -141,11 +141,13 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/auth/register` | Create an account and send the verification code; returns a `verificationToken`, not a session |
+| `POST` | `/auth/register` | Create an account and send the verification code; returns a `verificationToken`, not a session. Registering again with an unverified email replaces its name and password |
 | `POST` | `/auth/login` | Log in: access token in the body, refresh token in a cookie. An unverified account gets `403` with `code: "EMAIL_NOT_VERIFIED"` and a new `verificationToken` |
 | `POST` | `/auth/refresh` | Rotate the refresh token and get a new access token |
 | `POST` | `/auth/logout` · `/auth/logout-all` | End the current session / every session of the user |
-| `GET` | `/auth/me` | Profile of the logged-in user |
+| `GET` · `DELETE` | `/auth/me` | Profile of the logged-in user / delete the account (body: `password`) |
+| `POST` | `/auth/change-password` | Change the password (`currentPassword`, `newPassword`); closes every other session and returns a new one |
+| `POST` | `/auth/forgot-password` · `/auth/reset-password` | Email a reset link to `FRONTEND_URL/reset-password?token=…` (always `204`) / set a new password with that token (closes every session) |
 | `POST` | `/auth/verify-email` · `/auth/resend-verification` | Verify the email with the 6-digit code and open the first session / request a new code. Both take the `verificationToken` as `Authorization: Bearer` |
 | `GET` | `/mercado-libre/categories` | List available categories |
 | `GET` | `/mercado-libre/products/:category` | Best sellers in a category (e.g. `computers`) |
@@ -155,4 +157,4 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 | `PATCH` | `/users/me/email-notifications` | Turn alert emails on or off |
 | `GET` | `/mercado-libre/auth/status` | Mercado Libre connection status (admin) |
 
-Every endpoint except registration, login, refresh, logout, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. Only verified accounts can get an access token. The `verificationToken` (30 minutes) only works on `/auth/verify-email` and `/auth/resend-verification`. The `/mercado-libre/auth/*` endpoints also require an email listed in `ADMIN_EMAILS`.
+Every endpoint except registration, login, refresh, logout, password recovery, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. Only verified accounts can get an access token. The `verificationToken` (30 minutes) only works on `/auth/verify-email` and `/auth/resend-verification`. The `/mercado-libre/auth/*` endpoints also require an email listed in `ADMIN_EMAILS`.
