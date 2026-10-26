@@ -9,6 +9,7 @@ import { UsersService } from '../../users/users.service.js';
 import { UserMapper } from '../../users/mappers/user.mapper.js';
 import { EMAIL_VERIFICATION_TOKEN_AUDIENCE } from '../email-verification-token.constants.js';
 import { EmailVerificationTokenPayload } from '../interfaces/email-verification-token-payload.js';
+import { PasswordHasher } from '../password-hasher.js';
 
 export const EMAIL_VERIFICATION_STRATEGY = 'email-verification';
 
@@ -16,6 +17,7 @@ export const EMAIL_VERIFICATION_STRATEGY = 'email-verification';
 export class EmailVerificationStrategy extends PassportStrategy(Strategy, EMAIL_VERIFICATION_STRATEGY) {
   constructor(
     private readonly usersService: UsersService,
+    private readonly passwordHasher: PasswordHasher,
     configService: ConfigService,
   ) {
     super({
@@ -32,7 +34,9 @@ export class EmailVerificationStrategy extends PassportStrategy(Strategy, EMAIL_
     if(!isUUID(payload.sub)) throw new UnauthorizedException('Invalid verification token');
 
     const user = await this.usersService.findById(payload.sub!);
-    if(!user || user.emailVerifiedAt) throw new UnauthorizedException('Invalid verification token');
+    if(!user || user.emailVerifiedAt || payload.passwordFingerprint !== this.passwordHasher.fingerprint(user.password)) {
+      throw new UnauthorizedException('Invalid verification token');
+    }
     return UserMapper.toResponse(user);
   }
 }
