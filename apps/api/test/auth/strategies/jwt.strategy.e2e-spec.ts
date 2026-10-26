@@ -5,9 +5,9 @@ import { JwtService } from '@nestjs/jwt';
 
 import { Session } from '../../../src/auth/entities/session.entity.js';
 import { createUser } from '../../support/factories.js';
+import { registerVerifiedUser, TEST_PASSWORD as PASSWORD } from '../../support/auth-flow.js';
 import { createTestApp, TestApp } from '../../support/test-app.js';
 
-const PASSWORD = 'Str0ng-Passw0rd!';
 const EMAIL = 'guard@example.test';
 const COOKIE_NAME = 'refresh_token';
 
@@ -42,8 +42,7 @@ describe('JwtStrategy (e2e): access token ligado a la sesión', () => {
 
   beforeEach(async () => {
     await t.reset();
-    await http().post('/auth/register').send({ name: 'Ana', email: EMAIL, password: PASSWORD }).expect(HttpStatus.CREATED);
-    await vi.waitFor(() => expect(t.mail.lastCodeFor(EMAIL)).toBeDefined());
+    await registerVerifiedUser(t, { email: EMAIL });
   });
 
   it('GET /auth/me devuelve el perfil aunque el token ya no lleve nombre ni correo', async () => {
@@ -51,7 +50,7 @@ describe('JwtStrategy (e2e): access token ligado a la sesión', () => {
 
     const { body } = await me(accessToken).expect(HttpStatus.OK);
 
-    expect(body).toMatchObject({ name: 'Ana', email: EMAIL, emailVerified: false });
+    expect(body).toMatchObject({ name: 'Ana', email: EMAIL, emailVerified: true });
   });
 
   it('logout invalida de inmediato el access token de esa sesión, no el de otras', async () => {
@@ -96,6 +95,12 @@ describe('JwtStrategy (e2e): access token ligado a la sesión', () => {
       .update({ tokenHash: sha256(refreshToken) }, { expiresAt: new Date(Date.now() - 1000) });
 
     await me(accessToken).expect(HttpStatus.UNAUTHORIZED);
+  });
+
+  it('rechaza el access token de un usuario sin correo verificado', async () => {
+    const user = await createUser(t.dataSource, { verified: false });
+
+    await me(await t.tokenFor(user)).expect(HttpStatus.UNAUTHORIZED);
   });
 
   it('rechaza un sid que pertenece a otro usuario', async () => {
