@@ -18,7 +18,7 @@ export const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * M
 
 export async function createUser(
   dataSource: DataSource,
-  { email = `user-${randomUUID().slice(0, 8)}@example.test`, verified = false, emailNotifications = true } = {},
+  { email = `user-${randomUUID().slice(0, 8)}@example.test`, verified = true, emailNotifications = true } = {},
 ): Promise<User> {
   return dataSource.getRepository(User).save({
     name: 'Usuario de prueba',

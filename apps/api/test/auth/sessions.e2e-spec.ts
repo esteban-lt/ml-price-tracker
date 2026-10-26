@@ -5,9 +5,9 @@ import { HttpStatus } from '@nestjs/common';
 
 import { Session } from '../../src/auth/entities/session.entity.js';
 import { User } from '../../src/users/entities/user.entity.js';
+import { registerVerifiedUser, TEST_PASSWORD as PASSWORD } from '../support/auth-flow.js';
 import { createTestApp, TestApp } from '../support/test-app.js';
 
-const PASSWORD = 'Str0ng-Passw0rd!';
 const EMAIL = 'sesiones@example.test';
 const COOKIE_NAME = 'refresh_token';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,11 +46,10 @@ describe('Sesiones con refresh token (e2e)', () => {
 
   beforeEach(async () => {
     await t.reset();
-    await http().post('/auth/register').send({ name: 'Ana', email: EMAIL, password: PASSWORD }).expect(HttpStatus.CREATED);
-    await vi.waitFor(() => expect(t.mail.lastCodeFor(EMAIL)).toBeDefined());
+    await registerVerifiedUser(t, { email: EMAIL });
   });
 
-  it('el registro también abre una sesión', async () => {
+  it('verificar el correo abre la primera sesión', async () => {
     const user = await t.dataSource.getRepository(User).findOneByOrFail({ email: EMAIL });
     expect(await sessions().countBy({ userId: user.id })).toBe(1);
   });

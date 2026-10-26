@@ -29,9 +29,9 @@ describe('AdminGuard (e2e) en los endpoints de autorización de Mercado Libre', 
     await status(await t.tokenFor(user)).expect(HttpStatus.FORBIDDEN);
   });
 
-  it('un administrador sin correo verificado recibe 403', async () => {
+  it('un administrador sin correo verificado no pasa la autenticación', async () => {
     const admin = await createUser(t.dataSource, { email: TEST_ADMIN_EMAIL, verified: false });
-    await status(await t.tokenFor(admin)).expect(HttpStatus.FORBIDDEN);
+    await status(await t.tokenFor(admin)).expect(HttpStatus.UNAUTHORIZED);
   });
 
   it('un administrador verificado puede consultar el estado', async () => {
