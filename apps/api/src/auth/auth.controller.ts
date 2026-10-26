@@ -9,10 +9,11 @@ import { Auth } from './decorators/auth.decorator.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
 import { UserResponseDto } from '../users/dto/user-response.dto.js';
 import { RATE_LIMITS } from '../config/throttler.js';
-import { UserMapper } from '../users/mappers/user.mapper.js';
 import { EmailVerificationService } from './email-verification.service.js';
 import { VerifyEmailDto } from './dto/verify-email.dto.js';
 import { AuthResponseDto } from './dto/auth-response.dto.js';
+import { EmailVerificationRequiredDto } from './dto/email-verification-required.dto.js';
+import { EmailVerificationAuth } from './decorators/email-verification-auth.decorator.js';
 import { RefreshTokenCookie } from './refresh-token-cookie.js';
 import { SessionClient } from './sessions.service.js';
 
@@ -26,12 +27,8 @@ export class AuthController {
 
   @Post('register')
   @Throttle({ default: RATE_LIMITS.auth })
-  async register(
-    @Body() createUserDto: CreateUserDto,
-    @Req() request: Request,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponseDto> {
-    return this.withCookie(response, await this.authService.register(createUserDto, clientOf(request)));
+  register(@Body() createUserDto: CreateUserDto): Promise<EmailVerificationRequiredDto> {
+    return this.authService.register(createUserDto);
   }
 
   @Post('login')
@@ -75,15 +72,20 @@ export class AuthController {
   }
 
   @Post('verify-email')
-  @Auth()
+  @EmailVerificationAuth()
   @Throttle({ default: RATE_LIMITS.auth })
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@CurrentUser() user: UserResponseDto, @Body() { code }: VerifyEmailDto): Promise<UserResponseDto> {
-    return UserMapper.toResponse(await this.emailVerificationService.verify(user.id, code));
+  async verifyEmail(
+    @CurrentUser() user: UserResponseDto,
+    @Body() { code }: VerifyEmailDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    return this.withCookie(response, await this.authService.verifyEmail(user.id, code, clientOf(request)));
   }
 
   @Post('resend-verification')
-  @Auth()
+  @EmailVerificationAuth()
   @Throttle({ default: RATE_LIMITS.auth })
   @HttpCode(HttpStatus.NO_CONTENT)
   resendVerification(@CurrentUser() user: UserResponseDto): Promise<void> {
