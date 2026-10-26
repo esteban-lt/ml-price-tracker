@@ -9,6 +9,7 @@ import { MailService } from '../mail/mail.service.js';
 import { User } from '../users/entities/user.entity.js';
 import { EmailVerificationCode } from './entities/email-verification-code.entity.js';
 import { buildVerificationEmail } from './verification-email.template.js';
+import { VerificationCodeCooldownException } from './exceptions/verification-code-cooldown.exception.js';
 
 const CODE_TTL_MINUTES = 10;
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -36,6 +37,7 @@ export class EmailVerificationService {
   // Para el registro: no retrasa la respuesta y un fallo solo se registra (el usuario puede pedir el reenvío).
   sendCodeInBackground(user: User): void {
     this.sendCode(user).catch((error: unknown) => {
+      if (error instanceof VerificationCodeCooldownException) return;
       this.logger.error(`No se pudo enviar el código de verificación al usuario ${user.id}: ${(error as Error).message}`);
     });
   }
@@ -103,11 +105,11 @@ export class EmailVerificationService {
     await this.mailService.send({ to: user.email, ...buildVerificationEmail(code, CODE_TTL_MINUTES) });
   }
 
-  private async cooldownError(userId: string): Promise<HttpException> {
+  private async cooldownError(userId: string): Promise<VerificationCodeCooldownException> {
     const current = await this.codeRepository.findOneByOrFail({ userId });
     const createdAt = current.expiresAt.getTime() - CODE_TTL_MINUTES * 60_000;
     const seconds = Math.max(1, Math.ceil((createdAt + RESEND_COOLDOWN_SECONDS * 1000 - Date.now()) / 1000));
-    return new HttpException(`Espera ${seconds} segundos antes de pedir otro código`, HttpStatus.TOO_MANY_REQUESTS);
+    return new VerificationCodeCooldownException(seconds);
   }
 
   private async unusableCodeError(userId: string): Promise<BadRequestException> {
