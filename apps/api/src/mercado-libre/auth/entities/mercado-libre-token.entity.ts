@@ -10,4 +10,7 @@ export class MercadoLibreToken {
 
   @Column({ name: 'refresh_token', type: 'text' })
   refreshToken: string;
+
+  @Column({ name: 'authorization_lost_notified_at', type: 'timestamptz', nullable: true })
+  authorizationLostNotifiedAt: Date | null;
 }
