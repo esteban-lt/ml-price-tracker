@@ -1,22 +1,15 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { normalizeEmail, parseAdminEmails } from '../../config/admin-emails.js';
 import { UserResponseDto } from '../../users/dto/user-response.dto.js';
-
-const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 @Injectable()
 export class AdminGuard implements CanActivate {
   private readonly adminEmails: Set<string>;
 
   constructor(configService: ConfigService) {
-    this.adminEmails = new Set(
-      configService
-        .get<string>('ADMIN_EMAILS', '')
-        .split(',')
-        .map(normalizeEmail)
-        .filter(Boolean),
-    );
+    this.adminEmails = new Set(parseAdminEmails(configService.get<string>('ADMIN_EMAILS', '')));
   }
 
   canActivate(context: ExecutionContext): boolean {
