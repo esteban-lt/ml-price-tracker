@@ -14,9 +14,18 @@ function alert({ name = 'Audífonos', url = 'https://www.mercadolibre.com.mx/p/M
   } as unknown as Alert;
 }
 
+const links = { frontendUrl: 'https://app.test', unsubscribeUrl: 'https://app.test/unsubscribe?token=abc' };
+
 describe('buildAlertEmail', () => {
+  it('incluye el enlace para dejar de recibir alertas en texto y HTML', () => {
+    const { html, text } = buildAlertEmail(alert(), links);
+
+    expect(text).toContain(links.unsubscribeUrl);
+    expect(html).toContain(`href="${links.unsubscribeUrl}"`);
+  });
+
   it('escapa el HTML del nombre del producto', () => {
-    const { html, text } = buildAlertEmail(alert({ name: '<script>alert("x")</script> & Cía' }), 'https://app.test');
+    const { html, text } = buildAlertEmail(alert({ name: '<script>alert("x")</script> & Cía' }), links);
 
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
@@ -25,14 +34,14 @@ describe('buildAlertEmail', () => {
   });
 
   it('escapa las URLs dentro de atributos', () => {
-    const { html } = buildAlertEmail(alert({ url: 'https://example.test/p?a=1&b="x"' }), 'https://app.test');
+    const { html } = buildAlertEmail(alert({ url: 'https://example.test/p?a=1&b="x"' }), links);
 
     expect(html).not.toContain('b="x"');
     expect(html).toContain('a=1&amp;b=&quot;x&quot;');
   });
 
   it('formatea el precio en pesos mexicanos', () => {
-    const { html, text } = buildAlertEmail(alert({ price: 1299.5 }), 'https://app.test');
+    const { html, text } = buildAlertEmail(alert({ price: 1299.5 }), links);
 
     expect(text).toContain('$1,299.50');
     expect(html).toContain('$1,299.50');

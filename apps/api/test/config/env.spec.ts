@@ -11,6 +11,7 @@ const production = {
   RESEND_API_KEY: 're_key',
   MAIL_FROM: 'Nudge <hola@example.test>',
   FRONTEND_URL: 'https://app.example.test',
+  API_URL: 'https://api.example.test',
   VERIFICATION_CODE_SECRET: 'y'.repeat(32),
 };
 const errorOf = (values: object) => env.validate(values, { abortEarly: false }).error?.message;
@@ -33,6 +34,7 @@ describe('validación de variables de entorno', () => {
     'RESEND_API_KEY',
     'MAIL_FROM',
     'FRONTEND_URL',
+    'API_URL',
     'VERIFICATION_CODE_SECRET',
   ] as const)('en producción falla si falta %s', (key) => {
     expect(errorOf(without(key))).toContain(key);
@@ -60,6 +62,21 @@ describe('validación de variables de entorno', () => {
     expect(errorOf({ ...production, REFRESH_COOKIE_SAME_SITE: 'always' })).toContain('REFRESH_COOKIE_SAME_SITE');
     expect(errorOf({ ...production, JWT_ISSUER: '' })).toContain('JWT_ISSUER');
     expect(errorOf({ ...production, JWT_AUDIENCE: '' })).toContain('JWT_AUDIENCE');
+  });
+
+  it('el job de precios corre a las 0, 6, 12 y 18 h de la Ciudad de México y Mercado Libre tiene timeout de 10 s', () => {
+    const { value } = env.validate(production);
+    expect(value).toMatchObject({
+      PRICE_REFRESH_CRON: '0 0,6,12,18 * * *',
+      PRICE_REFRESH_TIMEZONE: 'America/Mexico_City',
+      ML_REQUEST_TIMEOUT_MS: 10_000,
+    });
+  });
+
+  it('rechaza un cron, una zona horaria o un timeout inválidos', () => {
+    expect(errorOf({ ...production, PRICE_REFRESH_CRON: 'cada seis horas' })).toContain('PRICE_REFRESH_CRON');
+    expect(errorOf({ ...production, PRICE_REFRESH_TIMEZONE: 'Marte/Olympus' })).toContain('PRICE_REFRESH_TIMEZONE');
+    expect(errorOf({ ...production, ML_REQUEST_TIMEOUT_MS: 10 })).toContain('ML_REQUEST_TIMEOUT_MS');
   });
 
   it('fuera de producción RESEND_API_KEY es opcional', () => {

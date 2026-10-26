@@ -105,7 +105,7 @@ describe('Sesiones con refresh token (e2e)', () => {
     await refresh('token-inventado').expect(HttpStatus.UNAUTHORIZED);
 
     const token = refreshCookieOf(await login()).value;
-    await sessions().update({ tokenHash: sha256(token) }, { expiresAt: new Date(Date.now() - 1000) });
+    await sessions().update({ tokenHash: sha256(token) }, { expiresAt: new Date(Date.now() - 60 * 60 * 1000) });
     await refresh(token).expect(HttpStatus.UNAUTHORIZED);
   });
 

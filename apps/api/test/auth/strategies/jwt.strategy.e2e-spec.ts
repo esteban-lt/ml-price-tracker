@@ -92,7 +92,7 @@ describe('JwtStrategy (e2e): access token ligado a la sesión', () => {
 
     await t.dataSource
       .getRepository(Session)
-      .update({ tokenHash: sha256(refreshToken) }, { expiresAt: new Date(Date.now() - 1000) });
+      .update({ tokenHash: sha256(refreshToken) }, { expiresAt: new Date(Date.now() - 60 * 60 * 1000) });
 
     await me(accessToken).expect(HttpStatus.UNAUTHORIZED);
   });
