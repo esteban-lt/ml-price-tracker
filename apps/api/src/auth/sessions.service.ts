@@ -86,10 +86,11 @@ export class SessionsService {
 
   // Para cada petición autenticada: el usuario y la vigencia de su sesión en una sola consulta,
   // resuelta con el índice parcial de familias activas.
-  findUserWithActiveSession(userId: string, sid: string): Promise<User | null> {
+  findVerifiedUserWithActiveSession(userId: string, sid: string): Promise<User | null> {
     return this.userRepository
       .createQueryBuilder('user')
       .where('user.id = :userId', { userId })
+      .andWhere('user.emailVerifiedAt IS NOT NULL')
       .andWhere((qb) => {
         const active = qb
           .subQuery()
