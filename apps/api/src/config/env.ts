@@ -1,5 +1,6 @@
 // `then` es parte de la API de Joi.when, no un thenable.
 // oxlint-disable unicorn/no-thenable
+import { validateCronExpression } from 'cron';
 import Joi from 'joi';
 
 import { APP_NAME } from '../mail/mail.constants.js';
@@ -22,8 +23,20 @@ export const env = Joi.object({
   ML_CLIENT_ID: Joi.string().required(),
   ML_CLIENT_SECRET: Joi.string().required(),
   ML_REDIRECT_URI: Joi.string().uri().default('https://oauth.pstmn.io/v1/callback'),
+  ML_REQUEST_TIMEOUT_MS: Joi.number().integer().min(1000).max(60_000).default(10_000),
   PRICE_REFRESH_ENABLED: Joi.boolean().default(true),
-  PRICE_REFRESH_INTERVAL_MINUTES: Joi.number().integer().min(1).default(360),
+  PRICE_REFRESH_CRON: Joi.string()
+    .custom((value: string) => {
+      if (!validateCronExpression(value).valid) throw new Error('expresión cron inválida');
+      return value;
+    })
+    .default('0 0,6,12,18 * * *'),
+  PRICE_REFRESH_TIMEZONE: Joi.string()
+    .custom((value: string) => {
+      new Intl.DateTimeFormat('en-US', { timeZone: value });
+      return value;
+    })
+    .default('America/Mexico_City'),
   CORS_ORIGIN: Joi.string().when('NODE_ENV', {
     is: 'production',
     then: Joi.string().pattern(/^[^*]+$/, 'sin comodín').required(),
@@ -39,6 +52,11 @@ export const env = Joi.object({
     is: 'production',
     then: Joi.string().required(),
     otherwise: Joi.string().default(`${APP_NAME} <onboarding@resend.dev>`),
+  }),
+  API_URL: Joi.string().uri().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().required(),
+    otherwise: Joi.string().uri().default('http://localhost:3000'),
   }),
   FRONTEND_URL: Joi.string().uri().when('NODE_ENV', {
     is: 'production',

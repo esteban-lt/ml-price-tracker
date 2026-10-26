@@ -8,6 +8,7 @@ export interface MailMessage {
   subject: string;
   html: string;
   text: string;
+  headers?: Record<string, string>;
 }
 
 // Límite de peticiones por segundo o cuota diaria/mensual agotada: conviene dejar de enviar por ahora.
@@ -32,13 +33,13 @@ export class MailService {
   }
 
   // Lanza MailRateLimitError ante límite o cuota de Resend, y Error con un mensaje seguro ante cualquier otro fallo.
-  async send({ to, subject, html, text }: MailMessage): Promise<void> {
+  async send({ to, subject, html, text, headers }: MailMessage): Promise<void> {
     if (!this.resend) {
       this.logger.log(`Correo no enviado (sin RESEND_API_KEY) para ${to} - ${subject}\n${text}`);
       return;
     }
 
-    const { error } = await this.resend.emails.send({ from: this.from, to, subject, html, text });
+    const { error } = await this.resend.emails.send({ from: this.from, to, subject, html, text, headers });
     if (!error) return;
 
     const detail = `Resend respondió ${error.statusCode ?? 'sin respuesta'} - ${error.name}: ${error.message}`;

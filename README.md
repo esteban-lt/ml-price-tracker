@@ -12,8 +12,8 @@ Prices on Mercado Libre change often, and the same product is usually sold by se
 - **Best sellers by category** — 28 categories available.
 - **Lowest price across sellers** — price, discount and number of sellers for each product.
 - **Trackable products only** — results include only catalog products with active sellers, which are the ones that can be followed.
-- **Price tracking** — follow a product with a target price or a percentage drop; prices are checked periodically and stored as history.
-- **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold (can be turned off).
+- **Price tracking** — follow a product with a target price or a percentage drop; prices are checked at 00:00, 06:00, 12:00 and 18:00 (Mexico City time, configurable with `PRICE_REFRESH_CRON` and `PRICE_REFRESH_TIMEZONE`) and stored as history.
+- **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold. Alert emails carry a one-click unsubscribe (`List-Unsubscribe`, RFC 8058) and an unsubscribe link to `FRONTEND_URL/unsubscribe?token=…`.
 - **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices). Verifying the email with a 6-digit code is required before the first session. Password recovery by email link, password change and account deletion.
 
 ### Coming soon
@@ -39,7 +39,7 @@ apps/
 └── app/   # React frontend
 ```
 
-The API integrates with the official [Mercado Libre API](https://developers.mercadolibre.com.mx/). The Mercado Libre account is linked once through OAuth, and the access token is refreshed automatically after that.
+The API integrates with the official [Mercado Libre API](https://developers.mercadolibre.com.mx/). The Mercado Libre account is linked once through OAuth, and the access token is refreshed automatically after that. Every request has a timeout (`ML_REQUEST_TIMEOUT_MS`, 10 s by default); reads are retried up to twice on network errors, `5xx` and `429` (exponential backoff with jitter, honoring `Retry-After`); after 5 consecutive failures the API stops calling Mercado Libre for 30 seconds and answers `503`. If the authorization is lost for good, admins in `ADMIN_EMAILS` get an email (at most once a day).
 
 ## Getting started
 
@@ -115,6 +115,7 @@ Set `NODE_ENV=production`. The API refuses to start if any of these is missing o
 | `ML_CLIENT_ID` · `ML_CLIENT_SECRET` | Mercado Libre app credentials |
 | `CORS_ORIGIN` | Frontend origin(s), comma separated, no `*` |
 | `FRONTEND_URL` | Used in email links |
+| `API_URL` | Public URL of the API, used by the one-click unsubscribe header |
 | `RESEND_API_KEY` · `MAIL_FROM` | `MAIL_FROM` must use a domain verified in Resend |
 
 `PORT` is provided by the host (Render sets it). `ADMIN_EMAILS` is optional. Sessions default to a 15-minute access token (`JWT_EXPIRES_IN`, signed with the `JWT_ISSUER` and `JWT_AUDIENCE` claims) and a 30-day refresh token (`REFRESH_TOKEN_EXPIRES_IN_DAYS`); set `REFRESH_COOKIE_SAME_SITE=none` only if the frontend is served from a different site than the API. `GET /health` is a lightweight endpoint (no database access) for uptime checks.
@@ -155,6 +156,7 @@ docker run --rm -e DATABASE_URL="postgresql://..." nudge-api node node_modules/t
 | `GET` · `POST` | `/tracked-products` | List / track products |
 | `GET` | `/alerts` · `/alerts/unread-count` | Alerts inbox |
 | `PATCH` | `/users/me/email-notifications` | Turn alert emails on or off |
+| `POST` | `/users/unsubscribe?token=` | Turn alert emails off from the link in an alert email (no session needed) |
 | `GET` | `/mercado-libre/auth/status` | Mercado Libre connection status (admin) |
 
-Every endpoint except registration, login, refresh, logout, password recovery, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. Only verified accounts can get an access token. The `verificationToken` (30 minutes) only works on `/auth/verify-email` and `/auth/resend-verification`. The `/mercado-libre/auth/*` endpoints also require an email listed in `ADMIN_EMAILS`.
+Every endpoint except registration, login, refresh, logout, password recovery, unsubscribe, the public catalog endpoints (`/mercado-libre/categories` and `/mercado-libre/products`) and `/health` requires a JWT in the `Authorization: Bearer <token>` header. The refresh token is an HttpOnly cookie scoped to `/auth`, so browser clients must send requests with credentials (`credentials: 'include'`). The access token only carries the user id and the session id; it stops working as soon as its session is revoked (logout, logout-all or refresh-token reuse), without waiting for it to expire. Only verified accounts can get an access token. The `verificationToken` (30 minutes) only works on `/auth/verify-email` and `/auth/resend-verification`. The `/mercado-libre/auth/*` endpoints also require an email listed in `ADMIN_EMAILS`.

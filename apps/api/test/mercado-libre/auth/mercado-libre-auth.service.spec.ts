@@ -2,6 +2,7 @@ import { from, throwError } from 'rxjs';
 import { ServiceUnavailableException } from '@nestjs/common';
 
 import { MercadoLibreAuthService } from '../../../src/mercado-libre/auth/mercado-libre-auth.service.js';
+import { MercadoLibreCircuitBreaker } from '../../../src/mercado-libre/mercado-libre-circuit-breaker.js';
 
 const tokenResponse = (n: number) => ({
   access_token: `access-${n}`,
@@ -32,8 +33,15 @@ function setup(storedTokens: (string | null)[]) {
   const http = { post: vi.fn() };
   const config = { getOrThrow: (key: string) => `test-${key}` };
 
-  const service = new MercadoLibreAuthService(http as never, config as never, repository as never);
-  return { service, http, repository };
+  const notifier = { notifyInBackground: vi.fn() };
+  const service = new MercadoLibreAuthService(
+    http as never,
+    config as never,
+    repository as never,
+    new MercadoLibreCircuitBreaker(),
+    notifier as never,
+  );
+  return { service, http, repository, notifier };
 }
 
 describe('MercadoLibreAuthService (renovación del token)', () => {
@@ -48,7 +56,7 @@ describe('MercadoLibreAuthService (renovación del token)', () => {
 
     expect(await pending).toEqual(Array(5).fill('access-1'));
     expect(http.post).toHaveBeenCalledTimes(1);
-    expect(repository.upsert).toHaveBeenCalledWith({ id: 1, refreshToken: 'refresh-1' }, ['id']);
+    expect(repository.upsert).toHaveBeenCalledWith({ id: 1, refreshToken: 'refresh-1', authorizationLostNotifiedAt: null }, ['id']);
     expect(await service.getValidToken()).toBe('access-1');
     expect(http.post).toHaveBeenCalledTimes(1);
   });
@@ -73,6 +81,24 @@ describe('MercadoLibreAuthService (renovación del token)', () => {
     expect(http.post).toHaveBeenCalledTimes(1);
   });
 
+  it('si la autorización se pierde de forma definitiva avisa a los administradores', async () => {
+    const { service, http, notifier } = setup(['refresh-old']);
+    http.post.mockReturnValue(invalidGrant());
+
+    await service.getValidToken().catch(() => undefined);
+
+    expect(notifier.notifyInBackground).toHaveBeenCalledOnce();
+  });
+
+  it('un fallo pasajero al renovar no avisa a los administradores', async () => {
+    const { service, http, notifier } = setup(['refresh-old']);
+    http.post.mockReturnValue(throwError(() => ({ message: 'timeout of 10000ms exceeded' })));
+
+    await expect(service.getValidToken()).rejects.toThrow(ServiceUnavailableException);
+
+    expect(notifier.notifyInBackground).not.toHaveBeenCalled();
+  });
+
   it('sin autorización guardada responde un 503 genérico sin llamar a Mercado Libre', async () => {
     const { service, http } = setup([null]);
 
@@ -88,7 +114,7 @@ describe('MercadoLibreAuthService (intercambio del code)', () => {
 
     const status = await service.exchangeCode('TG-code');
 
-    expect(repository.upsert).toHaveBeenCalledWith({ id: 1, refreshToken: 'refresh-1' }, ['id']);
+    expect(repository.upsert).toHaveBeenCalledWith({ id: 1, refreshToken: 'refresh-1', authorizationLostNotifiedAt: null }, ['id']);
     expect(status).toMatchObject({ authorized: true, access_token_expires_at: expect.any(String) });
     expect(String(http.post.mock.calls[0][1])).toContain('grant_type=authorization_code');
     expect(await service.getValidToken()).toBe('access-1');

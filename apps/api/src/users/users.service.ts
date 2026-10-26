@@ -37,6 +37,10 @@ export class UsersService {
     await this.usersRepository.delete(id);
   }
 
+  async disableEmailNotifications(id: string): Promise<void> {
+    await this.usersRepository.update(id, { emailNotifications: false });
+  }
+
   async updateEmailNotifications(id: string, enabled: boolean): Promise<UserResponseDto> {
     const user = await this.usersRepository.findOneByOrFail({ id });
     user.emailNotifications = enabled;

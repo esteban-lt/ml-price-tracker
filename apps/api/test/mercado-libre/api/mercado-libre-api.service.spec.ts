@@ -1,11 +1,16 @@
 import { Observable, of, throwError } from 'rxjs';
 import { BadGatewayException, NotFoundException } from '@nestjs/common';
 
+import {
+  MercadoLibreCircuitBreaker,
+  MercadoLibreUnavailableException,
+} from '../../../src/mercado-libre/mercado-libre-circuit-breaker.js';
+
 import { MercadoLibreApiService } from '../../../src/mercado-libre/api/mercado-libre-api.service.js';
 
 // Respuestas simuladas con la forma de los tipos internos del servicio (CatalogProduct, ProductItem,
 // ProductSearch y Highlights). Una ruta sin respuesta registrada responde 404, como Mercado Libre.
-type Route = unknown | { httpError: number } | ((token: string) => unknown);
+type Route = unknown | { httpError: number; headers?: Record<string, string> } | ((token: string) => unknown);
 
 const item = (price: number, id = `I${price}`) => ({
   item_id: id,
@@ -36,7 +41,8 @@ function setup(routes: Record<string, Route>) {
       const value = typeof route === 'function' ? (route as (token: string) => unknown)(token) : route;
       if (value === undefined || (value as { httpError?: number }).httpError) {
         const status = (value as { httpError?: number } | undefined)?.httpError ?? 404;
-        return throwError(() => ({ message: `status ${status}`, response: { status, data: { message: 'error' } } }));
+        const headers = (value as { headers?: Record<string, string> } | undefined)?.headers ?? {};
+        return throwError(() => ({ message: `status ${status}`, response: { status, headers, data: { message: 'error' } } }));
       }
       return value instanceof Observable ? value : of({ data: value });
     }),
@@ -45,12 +51,72 @@ function setup(routes: Record<string, Route>) {
     getValidToken: vi.fn(async () => `token-${tokenVersion}`),
     invalidateAccessToken: vi.fn(() => void tokenVersion++),
   };
-  return { service: new MercadoLibreApiService(http as never, auth as never), requested, auth };
+  const service = new MercadoLibreApiService(http as never, auth as never, new MercadoLibreCircuitBreaker());
+  return { service, requested, auth };
 }
 
 const search = (results: object[], total = results.length) => ({ paging: { total }, results });
 
 describe('MercadoLibreApiService (HTTP simulado)', () => {
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('reintentos y cortacircuito', () => {
+    const callsTo = (requested: { path: string }[], path: string) => requested.filter((request) => request.path === path).length;
+    const flaky = (failures: number, status: number, headers?: Record<string, string>) => {
+      let calls = 0;
+      return () => (++calls <= failures ? { httpError: status, headers } : catalogProduct('MLM1'));
+    };
+
+    it.each([500, 503, 429])('reintenta una lectura que responde %s y termina bien', async (status) => {
+      const { service, requested } = setup({
+        '/products/MLM1': flaky(2, status),
+        '/products/MLM1/items': { results: [item(100)] },
+      });
+
+      expect((await service.getProduct('MLM1')).price).toBe(100);
+      expect(callsTo(requested, '/products/MLM1')).toBe(3);
+    });
+
+    it('hace como máximo 2 reintentos', async () => {
+      const { service, requested } = setup({ '/products/MLM1': { httpError: 500 } });
+
+      await expect(service.getProduct('MLM1')).rejects.toThrow(BadGatewayException);
+      expect(callsTo(requested, '/products/MLM1')).toBe(3);
+    });
+
+    it.each([400, 403, 404])('no reintenta un %s', async (status) => {
+      const { service, requested } = setup({ '/products/MLM1': { httpError: status } });
+
+      await service.getProduct('MLM1').catch(() => undefined);
+      expect(callsTo(requested, '/products/MLM1')).toBe(1);
+    });
+
+    it('respeta Retry-After y no reintenta si pide esperar más del tope', async () => {
+      const shortWait = setup({ '/products/MLM1': flaky(1, 429, { 'retry-after': '0' }), '/products/MLM1/items': { results: [item(1)] } });
+      await shortWait.service.getProduct('MLM1');
+      expect(callsTo(shortWait.requested, '/products/MLM1')).toBe(2);
+
+      const longWait = setup({ '/products/MLM1': flaky(1, 429, { 'retry-after': '120' }) });
+      await longWait.service.getProduct('MLM1').catch(() => undefined);
+      expect(callsTo(longWait.requested, '/products/MLM1')).toBe(1);
+    });
+
+    it('tras 5 fallos seguidos deja de llamar a Mercado Libre y responde 503', async () => {
+      const { service, requested } = setup({ '/products/MLM1': { httpError: 503 } });
+      for (let i = 0; i < 5; i++) await service.getProduct('MLM1').catch(() => undefined);
+      const callsBefore = requested.length;
+
+      await expect(service.getProduct('MLM1')).rejects.toThrow(MercadoLibreUnavailableException);
+      expect(requested.length).toBe(callsBefore);
+    });
+  });
+
   describe('búsqueda', () => {
     it('solo devuelve productos de catálogo activos con ofertas, con el precio mínimo', async () => {
       const { service } = setup({

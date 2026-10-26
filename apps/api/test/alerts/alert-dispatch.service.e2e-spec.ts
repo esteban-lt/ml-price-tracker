@@ -4,6 +4,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { AlertDispatchService } from '../../src/alerts/alert-dispatch.service.js';
 import { Alert, AlertStatusEnum } from '../../src/alerts/entities/alert.entity.js';
 import { MailRateLimitError } from '../../src/mail/mail.service.js';
+import { EmailUnsubscribeTokenService } from '../../src/users/email-unsubscribe-token.service.js';
+import { TEST_API_URL, TEST_FRONTEND_ORIGIN } from '../support/setup-env.js';
 import { createAlert, createProduct, createSnapshot, createTracking, createUser, minutesAgo } from '../support/factories.js';
 import { createTestApp, TestApp } from '../support/test-app.js';
 
@@ -43,6 +45,20 @@ describe('AlertDispatchService (e2e): envío de alertas por correo', () => {
 
     expect(t.mail.sentTo(user.email)).toHaveLength(1);
     expect(await stateOf(alert)).toEqual({ status: AlertStatusEnum.SENT, attempts: 1 });
+  });
+
+  it('incluye la baja en un clic (List-Unsubscribe) y un enlace de baja en el cuerpo', async () => {
+    const { user } = await givenAlert();
+
+    await dispatcher.run();
+
+    const [message] = t.mail.sentTo(user.email);
+    const token = t.app.get(EmailUnsubscribeTokenService).create(user.id);
+    expect(message.headers).toEqual({
+      'List-Unsubscribe': `<${TEST_API_URL}/users/unsubscribe?token=${token}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+    expect(message.text).toContain(`${TEST_FRONTEND_ORIGIN}/unsubscribe?token=${token}`);
   });
 
   it.each([
@@ -87,6 +103,7 @@ describe('AlertDispatchService (e2e): envío de alertas por correo', () => {
     const otherInstance = new AlertDispatchService(
       t.app.get(getRepositoryToken(Alert)),
       t.mail as never,
+      t.app.get(EmailUnsubscribeTokenService),
       t.app.get(ConfigService),
     );
 

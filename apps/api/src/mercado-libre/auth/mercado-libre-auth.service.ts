@@ -6,6 +6,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { firstValueFrom } from 'rxjs';
 
 import { describeMercadoLibreError, formatMercadoLibreError } from '../mercado-libre-error.js';
+import { MercadoLibreCircuitBreaker, MercadoLibreUnavailableException } from '../mercado-libre-circuit-breaker.js';
+import { isServiceFailure } from '../mercado-libre-retry-policy.js';
+import { AuthorizationLostNotifier } from './authorization-lost-notifier.js';
 import { MERCADO_LIBRE_TOKEN_ID, MercadoLibreToken } from './entities/mercado-libre-token.entity.js';
 
 const AUTHORIZATION_URL = 'https://auth.mercadolibre.com.mx/authorization';
@@ -60,6 +63,8 @@ export class MercadoLibreAuthService {
     private readonly configService: ConfigService,
     @InjectRepository(MercadoLibreToken)
     private readonly tokenRepository: Repository<MercadoLibreToken>,
+    private readonly circuitBreaker: MercadoLibreCircuitBreaker,
+    private readonly authorizationLostNotifier: AuthorizationLostNotifier,
   ) {}
 
   getAuthorizationUrl(): string {
@@ -143,21 +148,28 @@ export class MercadoLibreAuthService {
     // Otra instancia (p. ej. durante un despliegue) pudo renovar justo antes e invalidar el que leímos.
     const latest = await this.loadRefreshToken();
     if (!latest || latest === refreshToken) {
-      throw this.unavailable(`El refresh_token de Mercado Libre ya no es válido: ${REAUTHORIZE_HINT}`);
+      throw this.authorizationLost(`El refresh_token de Mercado Libre ya no es válido: ${REAUTHORIZE_HINT}`);
     }
 
     this.logger.warn('El refresh_token cambió en la base durante la renovación; se reintenta una vez con el nuevo');
     try {
       return await this.refreshWith(latest);
-    } catch {
-      throw this.unavailable(`No se pudo renovar el token de Mercado Libre: ${REAUTHORIZE_HINT}`);
+    } catch (error) {
+      const message = `No se pudo renovar el token de Mercado Libre: ${REAUTHORIZE_HINT}`;
+      if (error instanceof TokenRequestError && error.code === 'invalid_grant') throw this.authorizationLost(message);
+      throw this.unavailable(message);
     }
+  }
+
+  private authorizationLost(logMessage: string): ServiceUnavailableException {
+    this.authorizationLostNotifier.notifyInBackground();
+    return this.unavailable(logMessage);
   }
 
   // El detalle (incluidas las instrucciones de reautorización) va al log; el cliente solo ve un 503 genérico.
   private unavailable(logMessage: string): ServiceUnavailableException {
     this.logger.error(logMessage);
-    return new ServiceUnavailableException('Mercado Libre no está disponible en este momento; intenta más tarde');
+    return new MercadoLibreUnavailableException();
   }
 
   private async refreshWith(refreshToken: string): Promise<string> {
@@ -175,6 +187,7 @@ export class MercadoLibreAuthService {
       client_secret: this.configService.getOrThrow<string>('ML_CLIENT_SECRET'),
     });
 
+    this.circuitBreaker.assertClosed();
     try {
       const response = await firstValueFrom(
         this.httpService.post<TokenResponse>(TOKEN_URL, body.toString(), {
@@ -184,9 +197,11 @@ export class MercadoLibreAuthService {
           },
         }),
       );
+      this.circuitBreaker.recordSuccess();
       return response.data;
     } catch (error) {
       const detail = describeMercadoLibreError(error);
+      if (isServiceFailure(detail)) this.circuitBreaker.recordFailure();
       this.logger.error(formatMercadoLibreError('POST', `/oauth/token (${params.grant_type})`, detail));
       throw new TokenRequestError(detail.code);
     }
@@ -200,7 +215,10 @@ export class MercadoLibreAuthService {
   // El refresh_token se guarda antes de usar el access_token: el anterior ya dejó de servir.
   private async storeTokens(data: TokenResponse, refreshToken: string): Promise<void> {
     try {
-      await this.tokenRepository.upsert({ id: MERCADO_LIBRE_TOKEN_ID, refreshToken }, ['id']);
+      await this.tokenRepository.upsert(
+        { id: MERCADO_LIBRE_TOKEN_ID, refreshToken, authorizationLostNotifiedAt: null },
+        ['id'],
+      );
     } catch (error) {
       this.logger.error(
         `No se pudo guardar el refresh_token de Mercado Libre en la base (${(error as Error).message}). ` +

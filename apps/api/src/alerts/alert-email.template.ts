@@ -7,8 +7,16 @@ const SUBJECT_NAME_MAX_LENGTH = 60;
 
 type AlertEmail = Omit<MailMessage, 'to'>;
 
+interface AlertEmailLinks {
+  frontendUrl: string;
+  unsubscribeUrl: string;
+}
+
 // Requiere cargadas las relaciones priceHistory y trackedProduct.product.
-export function buildAlertEmail({ priceHistory, trackedProduct }: Alert, frontendUrl: string): AlertEmail {
+export function buildAlertEmail(
+  { priceHistory, trackedProduct }: Alert,
+  { frontendUrl, unsubscribeUrl }: AlertEmailLinks,
+): AlertEmail {
   const { product, thresholdType, thresholdValue, referencePrice } = trackedProduct;
   const formatPrice = (value: number) =>
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: priceHistory.currency }).format(value);
@@ -23,7 +31,8 @@ export function buildAlertEmail({ priceHistory, trackedProduct }: Alert, fronten
           `(tu alerta era por una baja de ${thresholdValue}%).`;
   const footer =
     `Recibes este correo porque sigues este producto en ${APP_NAME} y tienes activadas las alertas por correo. ` +
-    `Puedes desactivarlas desde la configuración de tu cuenta en ${APP_NAME}.`;
+    `Puedes desactivarlas cuando quieras.`;
+  const unsubscribeLabel = 'Dejar de recibir alertas por correo';
 
   const subject = `Bajó de precio: ${truncate(product.name, SUBJECT_NAME_MAX_LENGTH)}`;
 
@@ -35,6 +44,7 @@ export function buildAlertEmail({ priceHistory, trackedProduct }: Alert, fronten
     `Abrir ${APP_NAME}: ${frontendUrl}`,
     '',
     footer,
+    `${unsubscribeLabel}: ${unsubscribeUrl}`,
   ].join('\n');
 
   const image = product.imageUrl
@@ -54,7 +64,7 @@ export function buildAlertEmail({ priceHistory, trackedProduct }: Alert, fronten
       <a href="${escapeHtml(product.url)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:6px;font-size:15px;">Ver en Mercado Libre</a>
       <p style="margin:16px 0 0;font-size:14px;"><a href="${escapeHtml(frontendUrl)}" style="color:#2563eb;">Abrir ${APP_NAME}</a></p>
     </div>
-    <p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:#71717a;">${footer}</p>
+    <p style="margin:16px 0 0;font-size:12px;line-height:1.5;color:#71717a;">${footer} <a href="${escapeHtml(unsubscribeUrl)}" style="color:#71717a;">${unsubscribeLabel}</a></p>
   </div>
 </body>
 </html>`;
