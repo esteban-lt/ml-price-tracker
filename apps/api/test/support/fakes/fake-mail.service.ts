@@ -27,4 +27,8 @@ export class FakeMailService {
   lastCodeFor(email: string): string | undefined {
     return this.sentTo(email).at(-1)?.text.match(/\b\d{6}\b/)?.[0];
   }
+
+  lastPasswordResetTokenFor(email: string): string | undefined {
+    return this.sentTo(email).at(-1)?.text.match(/reset-password\?token=([\w-]+)/)?.[1];
+  }
 }

@@ -15,11 +15,10 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const exists = await this.findByEmail(createUserDto.email);
-    if(exists) throw new BadRequestException('User already exists');
-    const user = this.usersRepository.create(createUserDto);
-    return this.usersRepository.save(user);
+  async registerOrReplaceUnverified(createUserDto: CreateUserDto): Promise<User> {
+    const existing = await this.findByEmail(createUserDto.email);
+    if(existing?.emailVerifiedAt) throw new BadRequestException('User already exists');
+    return this.usersRepository.save(this.usersRepository.merge(existing ?? this.usersRepository.create(), createUserDto));
   }
 
   async findById(id: string): Promise<User | null> {
@@ -28,6 +27,14 @@ export class UsersService {
 
   async findByEmail(email: string): Promise<User | null> {
     return await this.usersRepository.findOne({ where: { email } });
+  }
+
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.usersRepository.update(id, { password: passwordHash });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.usersRepository.delete(id);
   }
 
   async updateEmailNotifications(id: string, enabled: boolean): Promise<UserResponseDto> {

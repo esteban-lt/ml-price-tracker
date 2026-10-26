@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 
-import { Controller, Get, Post, Body, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Delete, HttpCode, HttpStatus, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthResult, AuthService } from './auth.service.js';
 import { CreateUserDto } from '../users/dto/create-user.dto.js';
@@ -15,6 +15,11 @@ import { AuthResponseDto } from './dto/auth-response.dto.js';
 import { EmailVerificationRequiredDto } from './dto/email-verification-required.dto.js';
 import { EmailVerificationAuth } from './decorators/email-verification-auth.decorator.js';
 import { RefreshTokenCookie } from './refresh-token-cookie.js';
+import { PasswordResetService } from './password-reset.service.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { DeleteAccountDto } from './dto/delete-account.dto.js';
 import { SessionClient } from './sessions.service.js';
 
 @Controller('auth')
@@ -23,6 +28,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
     private readonly refreshTokenCookie: RefreshTokenCookie,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   @Post('register')
@@ -69,6 +75,46 @@ export class AuthController {
   @Auth()
   me(@CurrentUser() user: UserResponseDto) {
     return user;
+  }
+
+  @Delete('me')
+  @Auth()
+  @Throttle({ default: RATE_LIMITS.auth })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteAccount(
+    @CurrentUser() user: UserResponseDto,
+    @Body() { password }: DeleteAccountDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.deleteAccount(user.id, password);
+    this.refreshTokenCookie.clear(response);
+  }
+
+  @Post('change-password')
+  @Auth()
+  @Throttle({ default: RATE_LIMITS.auth })
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @CurrentUser() user: UserResponseDto,
+    @Body() changePasswordDto: ChangePasswordDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AuthResponseDto> {
+    return this.withCookie(response, await this.authService.changePassword(user.id, changePasswordDto, clientOf(request)));
+  }
+
+  @Post('forgot-password')
+  @Throttle({ default: RATE_LIMITS.auth })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  forgotPassword(@Body() { email }: ForgotPasswordDto): Promise<void> {
+    return this.passwordResetService.requestReset(email);
+  }
+
+  @Post('reset-password')
+  @Throttle({ default: RATE_LIMITS.auth })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  resetPassword(@Body() { token, password }: ResetPasswordDto): Promise<void> {
+    return this.passwordResetService.resetPassword(token, password);
   }
 
   @Post('verify-email')

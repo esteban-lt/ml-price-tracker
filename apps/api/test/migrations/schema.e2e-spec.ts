@@ -6,6 +6,7 @@ import { DataSource, EntitySchema } from 'typeorm';
 
 import { Alert } from '../../src/alerts/entities/alert.entity.js';
 import { EmailVerificationCode } from '../../src/auth/entities/email-verification-code.entity.js';
+import { PasswordResetToken } from '../../src/auth/entities/password-reset-token.entity.js';
 import { Session } from '../../src/auth/entities/session.entity.js';
 import { TrackedProduct } from '../../src/tracked-products/entities/tracked-product.entity.js';
 import { User } from '../../src/users/entities/user.entity.js';
@@ -72,6 +73,11 @@ describe('Esquema de la base (e2e)', () => {
         codeHash: 'hash',
         expiresAt: new Date(Date.now() + 60_000),
       });
+      await t.dataSource.getRepository(PasswordResetToken).insert({
+        userId: user.id,
+        tokenHash: 'b'.repeat(64),
+        expiresAt: new Date(Date.now() + 60_000),
+      });
       await t.dataSource.getRepository(Session).insert({
         userId: user.id,
         tokenHash: 'a'.repeat(64),
@@ -81,7 +87,7 @@ describe('Esquema de la base (e2e)', () => {
       return { user, tracking, alert };
     };
 
-    it('eliminar un usuario borra sus seguimientos, alertas, código de verificación y sesiones', async () => {
+    it('eliminar un usuario borra sus seguimientos, alertas, código de verificación, token de recuperación y sesiones', async () => {
       const { user, tracking, alert } = await givenUserWithData();
 
       await t.dataSource.getRepository(User).delete(user.id);
@@ -90,6 +96,7 @@ describe('Esquema de la base (e2e)', () => {
       expect(await t.dataSource.getRepository(Alert).countBy({ id: alert.id })).toBe(0);
       expect(await t.dataSource.getRepository(EmailVerificationCode).countBy({ userId: user.id })).toBe(0);
       expect(await t.dataSource.getRepository(Session).countBy({ userId: user.id })).toBe(0);
+      expect(await t.dataSource.getRepository(PasswordResetToken).countBy({ userId: user.id })).toBe(0);
     });
 
     it('eliminar un seguimiento borra sus alertas pero no al usuario', async () => {

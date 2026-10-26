@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 import { User } from '../users/entities/user.entity.js';
 import { Session } from './entities/session.entity.js';
+import { generateOpaqueToken, hashOpaqueToken } from './opaque-token.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Dos peticiones simultáneas con el mismo token (p. ej. dos pestañas) no cuentan como robo.
@@ -47,12 +48,12 @@ export class SessionsService {
   }
 
   async create(userId: string, client: SessionClient, familyId: string = randomUUID()): Promise<IssuedSession> {
-    const token = randomBytes(32).toString('base64url');
+    const token = generateOpaqueToken();
     const expiresAt = new Date(Date.now() + this.ttlMs);
 
     await this.sessionRepository.insert({
       userId,
-      tokenHash: hashToken(token),
+      tokenHash: hashOpaqueToken(token),
       familyId,
       userAgent: client.userAgent?.slice(0, USER_AGENT_MAX_LENGTH) ?? null,
       ip: client.ip ?? null,
@@ -65,7 +66,7 @@ export class SessionsService {
   // Revoca el token recibido y emite uno nuevo en la misma familia. Si llega un token ya revocado,
   // alguien más lo tiene: se revoca la familia completa.
   async rotate(token: string, client: SessionClient): Promise<IssuedSession & { userId: string }> {
-    const session = await this.sessionRepository.findOneBy({ tokenHash: hashToken(token) });
+    const session = await this.sessionRepository.findOneBy({ tokenHash: hashOpaqueToken(token) });
     if(!session) throw new UnauthorizedException('Invalid session');
 
     const now = new Date();
@@ -107,7 +108,7 @@ export class SessionsService {
   }
 
   async revoke(token: string): Promise<void> {
-    const session = await this.sessionRepository.findOneBy({ tokenHash: hashToken(token) });
+    const session = await this.sessionRepository.findOneBy({ tokenHash: hashOpaqueToken(token) });
     if(session) await this.revokeWhere({ familyId: session.familyId });
   }
 
@@ -120,7 +121,3 @@ export class SessionsService {
   }
 }
 
-// El token tiene 256 bits aleatorios, así que basta un SHA-256 sin sal para no guardarlo en claro.
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
