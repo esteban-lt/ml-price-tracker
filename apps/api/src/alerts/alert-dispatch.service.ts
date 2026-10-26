@@ -5,7 +5,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 
+import { listUnsubscribeHeaders } from '../mail/list-unsubscribe.js';
 import { MailRateLimitError, MailService } from '../mail/mail.service.js';
+import { EmailUnsubscribeTokenService } from '../users/email-unsubscribe-token.service.js';
 import { buildAlertEmail } from './alert-email.template.js';
 import { Alert, AlertStatusEnum } from './entities/alert.entity.js';
 
@@ -28,6 +30,7 @@ type SendOutcome = 'sent' | 'failed' | 'retrying' | 'rate-limited' | 'claimed-el
 export class AlertDispatchService {
   private readonly logger = new Logger(AlertDispatchService.name);
   private readonly frontendUrl: string;
+  private readonly apiUrl: string;
   private isRunning = false;
 
   constructor(
@@ -35,9 +38,11 @@ export class AlertDispatchService {
     private readonly alertRepository: Repository<Alert>,
 
     private readonly mailService: MailService,
+    private readonly emailUnsubscribeTokenService: EmailUnsubscribeTokenService,
     configService: ConfigService,
   ) {
-    this.frontendUrl = configService.getOrThrow<string>('FRONTEND_URL');
+    this.frontendUrl = withoutTrailingSlash(configService.getOrThrow<string>('FRONTEND_URL'));
+    this.apiUrl = withoutTrailingSlash(configService.getOrThrow<string>('API_URL'));
   }
 
   async run(): Promise<void> {
@@ -92,8 +97,17 @@ export class AlertDispatchService {
     if (attempts === null) return 'claimed-elsewhere';
 
     try {
-      const email = buildAlertEmail(alert, this.frontendUrl);
-      await this.mailService.send({ to: alert.trackedProduct.user.email, ...email });
+      const { user } = alert.trackedProduct;
+      const unsubscribeToken = encodeURIComponent(this.emailUnsubscribeTokenService.create(user.id));
+      const email = buildAlertEmail(alert, {
+        frontendUrl: this.frontendUrl,
+        unsubscribeUrl: `${this.frontendUrl}/unsubscribe?token=${unsubscribeToken}`,
+      });
+      await this.mailService.send({
+        to: user.email,
+        ...email,
+        headers: listUnsubscribeHeaders(`${this.apiUrl}/users/unsubscribe?token=${unsubscribeToken}`),
+      });
       return 'sent';
     } catch (error) {
       if (error instanceof MailRateLimitError) {
@@ -163,4 +177,8 @@ export class AlertDispatchService {
       .execute();
     return affected ?? 0;
   }
+}
+
+function withoutTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '');
 }
