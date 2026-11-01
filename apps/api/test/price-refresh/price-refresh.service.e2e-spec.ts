@@ -91,4 +91,16 @@ describe('PriceRefreshService (e2e): job de precios', () => {
 
     expect(await t.dataSource.query('SELECT count(*)::int AS n FROM alerts')).toEqual([{ n: 1 }]);
   });
+
+  it('envía el correo de la alerta en la misma corrida, sin esperar a otro proceso', async () => {
+    const product = await createProduct(t.dataSource, { externalId: 'MLM20000002' });
+    await createSnapshot(t.dataSource, product, 1000, minutesAgo(120));
+    const user = await createUser(t.dataSource);
+    await createTracking(t.dataSource, { user, product, createdAt: minutesAgo(180) });
+    t.mercadoLibre.setProduct('MLM20000002', { price: 850 });
+
+    await job.run();
+
+    expect(t.mail.sentTo(user.email)).toHaveLength(1);
+  });
 });
