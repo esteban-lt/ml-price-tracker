@@ -3,13 +3,15 @@ import { Logger } from '@nestjs/common';
 import { MercadoLibreUnavailableException } from '../../src/mercado-libre/mercado-libre-circuit-breaker.js';
 import { PriceRefreshService } from '../../src/price-refresh/price-refresh.service.js';
 
+const dispatcher = { run: vi.fn(async () => undefined) };
+
 describe('PriceRefreshService (corridas solapadas)', () => {
   it('omite una segunda ejecución mientras la primera sigue en curso', async () => {
     let finishFirstRun!: () => void;
     const trackedProductsService = {
       findProductsToRefresh: vi.fn(() => new Promise((resolve) => (finishFirstRun = () => resolve([])))),
     };
-    const job = new PriceRefreshService(trackedProductsService as never, {} as never, {} as never);
+    const job = new PriceRefreshService(trackedProductsService as never, {} as never, {} as never, dispatcher as never);
 
     const first = job.run();
     await job.run();
@@ -20,6 +22,17 @@ describe('PriceRefreshService (corridas solapadas)', () => {
     trackedProductsService.findProductsToRefresh.mockResolvedValue([]);
     await job.run();
     expect(trackedProductsService.findProductsToRefresh).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('PriceRefreshService (envío de alertas)', () => {
+  it('al terminar la revisión envía las alertas pendientes, también si no hubo productos', async () => {
+    dispatcher.run.mockClear();
+    const job = new PriceRefreshService({ findProductsToRefresh: async () => [] } as never, {} as never, {} as never, dispatcher as never);
+
+    await job.run();
+
+    expect(dispatcher.run).toHaveBeenCalledOnce();
   });
 });
 
@@ -42,6 +55,7 @@ describe('PriceRefreshService (resumen de la corrida)', () => {
       { findProductsToRefresh: async () => products } as never,
       productsService as never,
       {} as never,
+      dispatcher as never,
     );
 
     await job.run();

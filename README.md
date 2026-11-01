@@ -13,7 +13,7 @@ Prices on Mercado Libre change often, and the same product is usually sold by se
 - **Lowest price across sellers** — price, discount and number of sellers for each product.
 - **Trackable products only** — results include only catalog products with active sellers, which are the ones that can be followed.
 - **Price tracking** — follow a product with a target price or a percentage drop; prices are checked at 00:00, 06:00, 12:00 and 18:00 (Mexico City time, configurable with `PRICE_REFRESH_CRON` and `PRICE_REFRESH_TIMEZONE`) and stored as history.
-- **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold. Alert emails carry a one-click unsubscribe (`List-Unsubscribe`, RFC 8058) and an unsubscribe link to `FRONTEND_URL/unsubscribe?token=…`.
+- **Price drop alerts** — an in-app inbox, plus an email when the price crosses your threshold. Emails go out right after each price check (with a single retry 10 minutes later if any are left pending), so the database is not polled between checks and can suspend. Alert emails carry a one-click unsubscribe (`List-Unsubscribe`, RFC 8058) and an unsubscribe link to `FRONTEND_URL/unsubscribe?token=…`.
 - **User accounts** — registration and login with short-lived JWTs and refresh-token sessions (HttpOnly cookie, rotation, logout from one or all devices). Verifying the email with a 6-digit code is required before the first session. Password recovery by email link, password change and account deletion.
 
 ### Coming soon

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { AlertDetectionService } from '../alerts/alert-detection.service.js';
+import { AlertDispatchService } from '../alerts/alert-dispatch.service.js';
 import { mapWithConcurrency } from '../mercado-libre/api/mercado-libre-api.service.js';
 import { MercadoLibreUnavailableException } from '../mercado-libre/mercado-libre-circuit-breaker.js';
 import { PriceHistory } from '../price-history/entities/price-history.entity.js';
@@ -20,6 +21,7 @@ export class PriceRefreshService {
     private readonly trackedProductsService: TrackedProductsService,
     private readonly productsService: ProductsService,
     private readonly alertDetectionService: AlertDetectionService,
+    private readonly alertDispatchService: AlertDispatchService,
   ) {}
 
   async run(): Promise<void> {
@@ -31,6 +33,7 @@ export class PriceRefreshService {
     this.isRunning = true;
     try {
       await this.refreshAll();
+      await this.alertDispatchService.run();
     } catch (error) {
       this.logger.error(`La corrida falló: ${(error as Error).message}`);
     } finally {

@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Repository } from 'typeorm';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -16,6 +16,7 @@ const MAX_ALERTS_PER_RUN = 50;
 const MAX_ALERT_AGE = '24 hours';
 // Resend admite pocas peticiones por segundo; los envíos van en serie con esta pausa.
 const DELAY_BETWEEN_SENDS_MS = 600;
+const RETRY_DELAY_MS = 10 * 60 * 1000;
 
 interface DispatchSummary {
   sent: number;
@@ -26,12 +27,15 @@ interface DispatchSummary {
 
 type SendOutcome = 'sent' | 'failed' | 'retrying' | 'rate-limited' | 'claimed-elsewhere';
 
+// Corre al terminar cada revisión de precios, que es lo único que crea alertas. Así la base de datos
+// no se consulta cada pocos minutos y puede suspenderse entre revisiones.
 @Injectable()
-export class AlertDispatchService {
+export class AlertDispatchService implements OnModuleDestroy {
   private readonly logger = new Logger(AlertDispatchService.name);
   private readonly frontendUrl: string;
   private readonly apiUrl: string;
   private isRunning = false;
+  private retryTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @InjectRepository(Alert)
@@ -45,7 +49,7 @@ export class AlertDispatchService {
     this.apiUrl = withoutTrailingSlash(configService.getOrThrow<string>('API_URL'));
   }
 
-  async run(): Promise<void> {
+  async run({ retryLater = true } = {}): Promise<void> {
     if (this.isRunning) {
       this.logger.warn('El envío anterior sigue en curso; se omite esta corrida');
       return;
@@ -53,7 +57,8 @@ export class AlertDispatchService {
 
     this.isRunning = true;
     try {
-      await this.dispatchPending();
+      const { retrying } = await this.dispatchPending();
+      if (retrying > 0 && retryLater) this.scheduleRetry();
     } catch (error) {
       this.logger.error(`El envío de alertas falló: ${(error as Error).message}`);
     } finally {
@@ -61,7 +66,21 @@ export class AlertDispatchService {
     }
   }
 
-  private async dispatchPending(): Promise<void> {
+  onModuleDestroy(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+  }
+
+  // Un solo reintento por revisión; lo que siga pendiente se intenta en la siguiente revisión de precios.
+  private scheduleRetry(): void {
+    if (this.retryTimer) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.run({ retryLater: false });
+    }, RETRY_DELAY_MS);
+    this.retryTimer.unref();
+  }
+
+  private async dispatchPending(): Promise<DispatchSummary> {
     const summary: DispatchSummary = { sent: 0, skipped: 0, failed: 0, retrying: 0 };
     summary.skipped = (await this.skipExpired()) + (await this.skipUsersWithoutEmail());
 
@@ -90,6 +109,7 @@ export class AlertDispatchService {
           `${summary.failed} fallidas, ${summary.retrying} pendientes por reintento`,
       );
     }
+    return summary;
   }
 
   private async send(alert: Alert): Promise<SendOutcome> {
