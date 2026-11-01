@@ -6,7 +6,6 @@ import { PriceHistory } from '../price-history/entities/price-history.entity.js'
 import { TrackedProduct } from '../tracked-products/entities/tracked-product.entity.js';
 import { UsersModule } from '../users/users.module.js';
 import { AlertDetectionService } from './alert-detection.service.js';
-import { AlertDispatchScheduler } from './alert-dispatch.scheduler.js';
 import { AlertDispatchService } from './alert-dispatch.service.js';
 import { AlertsController } from './alerts.controller.js';
 import { AlertsService } from './alerts.service.js';
@@ -15,7 +14,7 @@ import { Alert } from './entities/alert.entity.js';
 @Module({
   imports: [TypeOrmModule.forFeature([Alert, TrackedProduct, PriceHistory]), MailModule, UsersModule],
   controllers: [AlertsController],
-  providers: [AlertsService, AlertDetectionService, AlertDispatchService, AlertDispatchScheduler],
-  exports: [AlertDetectionService],
+  providers: [AlertsService, AlertDetectionService, AlertDispatchService],
+  exports: [AlertDetectionService, AlertDispatchService],
 })
 export class AlertsModule {}
