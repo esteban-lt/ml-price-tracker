@@ -21,8 +21,7 @@ const queryClient = new QueryClient({
       staleTime: 30_000,
       refetchOnWindowFocus: false,
       // Don't retry client errors (404, 401, 429…) or Mercado Libre outages: the user gets "Reintentar".
-      retry: (failureCount, error) =>
-        failureCount < 1 && (!(error instanceof ApiError) || error.isNetworkError),
+      retry: (failureCount, error) => failureCount < 1 && (!(error instanceof ApiError) || error.isNetworkError),
     },
   },
 })

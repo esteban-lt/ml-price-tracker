@@ -17,4 +17,11 @@ export function useCategories() {
 }
 
 /** Categories shown on the home page. */
-export const FEATURED_CATEGORIES = ['computers', 'phones', 'video-games', 'electronics', 'appliances', 'home-and-garden']
+export const FEATURED_CATEGORIES = [
+  'computers',
+  'phones',
+  'video-games',
+  'electronics',
+  'appliances',
+  'home-and-garden',
+]

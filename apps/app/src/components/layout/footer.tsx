@@ -12,8 +12,8 @@ export function Footer() {
           <span className="ml-2 text-[13px] text-muted-foreground">© {new Date().getFullYear()}</span>
         </div>
         <p className="m-0 max-w-[520px] text-[13px] text-muted-foreground">
-          Nudge consulta precios públicos de Mercado Libre y no está afiliado a Mercado Libre. Los precios pueden cambiar
-          en cualquier momento.
+          Nudge consulta precios públicos de Mercado Libre y no está afiliado a Mercado Libre. Los precios pueden
+          cambiar en cualquier momento.
         </p>
         <nav aria-label="Pie de página" className="flex gap-5 font-semibold [&_a]:text-foreground [&_a]:no-underline">
           <Link to="/categorias">Categorías</Link>

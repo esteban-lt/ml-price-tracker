@@ -1,7 +1,10 @@
 import { createBrowserRouter } from 'react-router'
 import { AppLayout } from '@/components/layout/app-layout'
 import { RequireAuth, RequireGuest } from '@/features/auth/route-guards'
+import { BestSellersPage } from '@/pages/best-sellers-page'
+import { CategoriesPage } from '@/pages/categories-page'
 import { HomePage } from '@/pages/home-page'
+import { SearchPage } from '@/pages/search-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
 
@@ -13,9 +16,9 @@ export const router = createBrowserRouter([
     children: [
       // Public
       { path: '/', element: <HomePage /> },
-      { path: '/categorias', element: <PlaceholderPage code="P2" title="Categorías" /> },
-      { path: '/categorias/:slug', element: <PlaceholderPage code="P3" title="Más vendidos" /> },
-      { path: '/buscar', element: <PlaceholderPage code="P4" title="Resultados de búsqueda" /> },
+      { path: '/categorias', element: <CategoriesPage /> },
+      { path: '/categorias/:slug', element: <BestSellersPage /> },
+      { path: '/buscar', element: <SearchPage /> },
       { path: '/reset-password', element: <PlaceholderPage code="C5" title="Restablecer contraseña" /> },
       { path: '/unsubscribe', element: <PlaceholderPage code="C6" title="Baja de alertas por correo" /> },
       { path: '/verificar-correo', element: <PlaceholderPage code="C2" title="Verificar correo" /> },

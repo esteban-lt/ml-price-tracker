@@ -43,7 +43,9 @@ export function targetPrice(type: ThresholdType, value: number, referencePrice: 
 
 /** "Avísame si baja de $4,999.99" / "Avísame si baja 15 %" */
 export function describeThreshold(type: ThresholdType, value: number, currency = 'MXN') {
-  return type === 'price_below' ? `Avísame si baja de ${formatPrice(value, currency)}` : `Avísame si baja ${formatPercent(value)}`
+  return type === 'price_below'
+    ? `Avísame si baja de ${formatPrice(value, currency)}`
+    : `Avísame si baja ${formatPercent(value)}`
 }
 
 const absoluteFormatter = new Intl.DateTimeFormat('es-MX', {

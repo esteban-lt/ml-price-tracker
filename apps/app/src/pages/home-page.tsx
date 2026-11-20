@@ -1,18 +1,31 @@
 import { Link } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Bell, Search, Target, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SearchForm } from '@/components/layout/search-form'
 import { useAuth } from '@/features/auth/auth-context'
-import { FEATURED_CATEGORIES, useCategories } from '@/features/catalog/queries'
+import { catalogKeys, FEATURED_CATEGORIES, useCategories } from '@/features/catalog/queries'
+import { ProductGrid, ProductGridSkeleton } from '@/features/catalog/product-grid'
+import { catalogApi } from '@/lib/api/endpoints'
 import { CategoryCard } from '@/features/catalog/category-card'
 import { cn } from '@/lib/utils'
 
 const EXAMPLES = ['audífonos sony', 'nintendo switch', 'freidora de aire']
 
 const STEPS = [
-  { icon: Search, title: '1. Busca', text: 'Encuentra el producto de Mercado Libre que quieres comprar.', accent: false },
-  { icon: Target, title: '2. Elige tu precio', text: 'Un monto objetivo, o cuánto quieres que baje en porcentaje.', accent: false },
+  {
+    icon: Search,
+    title: '1. Busca',
+    text: 'Encuentra el producto de Mercado Libre que quieres comprar.',
+    accent: false,
+  },
+  {
+    icon: Target,
+    title: '2. Elige tu precio',
+    text: 'Un monto objetivo, o cuánto quieres que baje en porcentaje.',
+    accent: false,
+  },
   {
     icon: Bell,
     title: '3. Te avisamos',
@@ -26,6 +39,11 @@ export function HomePage() {
   const { status } = useAuth()
   const categories = useCategories()
   const featured = (categories.data ?? []).filter((c) => FEATURED_CATEGORIES.includes(c.slug))
+  const popular = useQuery({
+    queryKey: catalogKeys.bestSellers('computers'),
+    queryFn: () => catalogApi.bestSellers('computers'),
+    staleTime: 5 * 60 * 1000,
+  })
 
   return (
     <>
@@ -98,6 +116,22 @@ export function HomePage() {
         </div>
       </section>
 
+      {!popular.isError && (popular.isPending || popular.data.length > 0) && (
+        <section className="mx-auto max-w-[1200px] px-4 pt-10 pb-6 sm:px-6">
+          <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="m-0 font-display text-[32px] font-bold">Populares en Computación</h2>
+            <Link to="/categorias/computers" className="font-semibold no-underline">
+              Ver todos
+            </Link>
+          </div>
+          {popular.isPending ? (
+            <ProductGridSkeleton count={4} />
+          ) : (
+            <ProductGrid products={popular.data.slice(0, 4)} showRank rankContext="Computación" />
+          )}
+        </section>
+      )}
+
       {status !== 'authenticated' ? (
         <section className="mx-auto max-w-[1200px] px-4 pt-12 pb-16 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-6 rounded-[28px] bg-[#12201C] p-8 text-white sm:p-10">
@@ -134,7 +168,10 @@ export function HomePage() {
 /** Illustrative alert card from the design (static example, not real data). */
 function AlertExample() {
   return (
-    <div aria-label="Ejemplo de aviso" className="flex flex-col gap-4 rounded-[28px] border border-border bg-background p-6">
+    <div
+      aria-label="Ejemplo de aviso"
+      className="flex flex-col gap-4 rounded-[28px] border border-border bg-background p-6"
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold tracking-[.06em] text-muted-foreground uppercase">Así se ve un aviso</span>
         <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-success-soft-foreground">

@@ -132,14 +132,21 @@ export function Header() {
         <NavLink
           to="/categorias"
           className={({ isActive }) =>
-            cn('hidden font-semibold text-foreground no-underline hover:text-primary lg:inline', isActive && 'text-primary')
+            cn(
+              'hidden font-semibold text-foreground no-underline hover:text-primary lg:inline',
+              isActive && 'text-primary',
+            )
           }
         >
           Categorías
         </NavLink>
 
         {/* Desktop search */}
-        <SearchForm key={currentQuery} defaultValue={currentQuery} className="ml-auto hidden max-w-[520px] flex-1 md:block" />
+        <SearchForm
+          key={currentQuery}
+          defaultValue={currentQuery}
+          className="ml-auto hidden max-w-[520px] flex-1 md:block"
+        />
 
         <div className="ml-auto flex items-center gap-1 md:ml-0">
           <Button

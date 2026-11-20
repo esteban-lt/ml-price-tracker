@@ -21,8 +21,7 @@ export const authApi = {
     api<AuthResponse>('/auth/verify-email', { method: 'POST', body: { code }, bearer: verificationToken }),
   resendVerification: (verificationToken: string) =>
     api<void>('/auth/resend-verification', { method: 'POST', bearer: verificationToken }),
-  login: (body: { email: string; password: string }) =>
-    api<AuthResponse>('/auth/login', { method: 'POST', body }),
+  login: (body: { email: string; password: string }) => api<AuthResponse>('/auth/login', { method: 'POST', body }),
   logout: () => api<void>('/auth/logout', { method: 'POST' }),
   logoutAll: () => api<void>('/auth/logout-all', { method: 'POST' }),
   me: () => api<User>('/auth/me'),
@@ -68,8 +67,7 @@ export const trackingApi = {
 
 // ---------------------------------------------------------------- Alerts
 export const alertsApi = {
-  list: (params: { page?: number; limit?: number; unread?: boolean }) =>
-    api<AlertList>('/alerts', { query: params }),
+  list: (params: { page?: number; limit?: number; unread?: boolean }) => api<AlertList>('/alerts', { query: params }),
   unreadCount: () => api<{ count: number }>('/alerts/unread-count'),
   markRead: (id: string) => api<void>(`/alerts/${id}/read`, { method: 'PATCH' }),
   markAllRead: () => api<void>('/alerts/read-all', { method: 'PATCH' }),
@@ -82,4 +80,3 @@ export const adminApi = {
   exchange: (code: string) =>
     api<MercadoLibreAuthStatus>('/mercado-libre/auth/exchange', { method: 'POST', body: { code } }),
 }
-

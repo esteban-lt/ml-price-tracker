@@ -1,11 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  onSessionChange,
-  refreshSession,
-  setAccessToken,
-  setSessionExpiredHandler,
-} from '@/lib/api/client'
+import { onSessionChange, refreshSession, setAccessToken, setSessionExpiredHandler } from '@/lib/api/client'
 import { authApi } from '@/lib/api/endpoints'
 import type { AuthResponse, User } from '@/lib/api/types'
 

@@ -66,4 +66,3 @@ export function CategoryIcon({ slug, className }: { slug: string; className?: st
   const Icon = ICONS[slug] ?? Package
   return <Icon aria-hidden="true" className={className} />
 }
-
