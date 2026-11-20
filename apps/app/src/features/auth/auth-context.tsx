@@ -27,6 +27,8 @@ interface AuthContextValue {
   /** Clears local state after the account was deleted. */
   clearSession: () => void
   sessionExpired: boolean
+  /** The user signed out on purpose (logout, logout-all, deleted account): private routes go home, not to login. */
+  signedOut: boolean
   dismissSessionExpired: () => void
   pendingVerification: PendingVerification | null
   setPendingVerification: (value: PendingVerification | null) => void
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading')
   const [user, setUser] = useState<User | null>(null)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [signedOut, setSignedOut] = useState(false)
   const [pendingVerification, setPendingVerification] = useState<PendingVerification | null>(null)
 
   const applySession = useCallback((session: AuthResponse | null) => {
@@ -84,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearSession = useCallback(() => {
     applySession(null)
+    setSignedOut(true)
     // Drop every cached private query (trackings, alerts…); public catalog stays.
     queryClient.removeQueries({ queryKey: ['me'] })
   }, [applySession, queryClient])
@@ -108,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       startSession: (session) => {
         applySession(session)
         setSessionExpired(false)
+        setSignedOut(false)
         setPendingVerification(null)
       },
       updateUser: setUser,
@@ -115,11 +120,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logoutAll,
       clearSession,
       sessionExpired,
+      signedOut,
       dismissSessionExpired: () => setSessionExpired(false),
       pendingVerification,
       setPendingVerification,
     }),
-    [status, user, applySession, logout, logoutAll, clearSession, sessionExpired, pendingVerification],
+    [status, user, applySession, logout, logoutAll, clearSession, sessionExpired, signedOut, pendingVerification],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

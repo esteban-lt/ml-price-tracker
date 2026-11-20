@@ -4,9 +4,10 @@ import { useAuth } from './auth-context'
 
 /** Routes that need a session. Anonymous visitors go to login and come back after. */
 export function RequireAuth() {
-  const { status } = useAuth()
+  const { status, signedOut } = useAuth()
   const location = useLocation()
   if (status === 'loading') return <SplashScreen />
+  if (status === 'anonymous' && signedOut) return <Navigate to="/" replace />
   if (status === 'anonymous') {
     return <Navigate to="/iniciar-sesion" replace state={{ from: location.pathname + location.search }} />
   }

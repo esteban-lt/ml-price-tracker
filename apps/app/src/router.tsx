@@ -8,7 +8,10 @@ import { RegisterPage } from '@/pages/auth/register-page'
 import { ResetPasswordPage } from '@/pages/auth/reset-password-page'
 import { UnsubscribePage } from '@/pages/auth/unsubscribe-page'
 import { VerifyEmailPage } from '@/pages/auth/verify-email-page'
+import { AccountPage } from '@/pages/account-page'
+import { AlertsPage } from '@/pages/alerts-page'
 import { BestSellersPage } from '@/pages/best-sellers-page'
+import { ChangePasswordPage } from '@/pages/change-password-page'
 import { CategoriesPage } from '@/pages/categories-page'
 import { HomePage } from '@/pages/home-page'
 import { SearchPage } from '@/pages/search-page'
@@ -53,9 +56,9 @@ export const router = createBrowserRouter([
         children: [
           { path: '/seguimientos', element: <TrackingsPage /> },
           { path: '/seguimientos/:id', element: <TrackingDetailPage /> },
-          { path: '/alertas', element: <PlaceholderPage code="A5" title="Alertas" /> },
-          { path: '/cuenta', element: <PlaceholderPage code="A6" title="Mi cuenta" /> },
-          { path: '/cuenta/contrasena', element: <PlaceholderPage code="A7" title="Cambiar contraseña" /> },
+          { path: '/alertas', element: <AlertsPage /> },
+          { path: '/cuenta', element: <AccountPage /> },
+          { path: '/cuenta/contrasena', element: <ChangePasswordPage /> },
           { path: '/admin/mercado-libre', element: <PlaceholderPage code="X1" title="Conexión con Mercado Libre" /> },
         ],
       },
