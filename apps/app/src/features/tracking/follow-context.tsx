@@ -3,26 +3,7 @@ import { useLocation, useNavigate } from 'react-router'
 import type { CatalogProduct } from '@/lib/api/types'
 import { useAuth } from '@/features/auth/auth-context'
 import { FollowDialog } from './follow-dialog'
-
-const PENDING_KEY = 'nudge:pending-follow'
-
-function savePending(product: CatalogProduct) {
-  try {
-    sessionStorage.setItem(PENDING_KEY, JSON.stringify(product))
-  } catch {
-    // Private mode: the user will just have to press "Seguir precio" again.
-  }
-}
-
-function takePending(): CatalogProduct | null {
-  try {
-    const raw = sessionStorage.getItem(PENDING_KEY)
-    sessionStorage.removeItem(PENDING_KEY)
-    return raw ? (JSON.parse(raw) as CatalogProduct) : null
-  } catch {
-    return null
-  }
-}
+import { savePendingFollow, takePendingFollow } from './pending-follow'
 
 interface FollowContextValue {
   /** "Seguir precio": opens A2, or sends the visitor to log in and keeps the intent. */
@@ -45,7 +26,7 @@ export function FollowProvider({ children }: { children: ReactNode }) {
         setOpen(true)
         return
       }
-      savePending(next)
+      savePendingFollow(next)
       navigate('/iniciar-sesion', {
         state: { from: location.pathname + location.search, reason: 'follow' },
       })
@@ -56,7 +37,7 @@ export function FollowProvider({ children }: { children: ReactNode }) {
   // Back from login/registration with a saved intent: reopen A2 for that product.
   useEffect(() => {
     if (status !== 'authenticated') return
-    const pending = takePending()
+    const pending = takePendingFollow()
     if (pending) {
       setProduct(pending)
       setOpen(true)
