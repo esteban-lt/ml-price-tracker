@@ -4,7 +4,7 @@ import { RouterProvider } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ApiError } from '@/lib/api/client'
 import { AuthProvider } from '@/features/auth/auth-context'
-import { Toaster } from '@/components/ui/sonner'
+import { ResponsiveToaster } from '@/components/layout/responsive-toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { router } from './router'
 import './index.css'
@@ -32,7 +32,7 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <TooltipProvider>
           <RouterProvider router={router} />
-          <Toaster position="top-right" />
+          <ResponsiveToaster />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

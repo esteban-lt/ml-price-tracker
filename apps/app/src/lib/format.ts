@@ -54,18 +54,19 @@ const absoluteFormatter = new Intl.DateTimeFormat('es-MX', {
   year: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
+  hourCycle: 'h23',
 })
 const dayFormatter = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
 const relativeFormatter = new Intl.RelativeTimeFormat('es-MX', { numeric: 'auto' })
 
 /** "26 oct 2026, 12:00" in the user's time zone. */
 export function formatDateTime(iso: string) {
-  return absoluteFormatter.format(new Date(iso)).replace('.', '')
+  return absoluteFormatter.format(new Date(iso)).replace(/(\p{L}{3,})\./u, '$1')
 }
 
 /** "26 oct 2026" */
 export function formatDate(iso: string) {
-  return dayFormatter.format(new Date(iso)).replace('.', '')
+  return dayFormatter.format(new Date(iso)).replace(/(\p{L}{3,})\./u, '$1')
 }
 
 /** "hace 3 horas", "ayer"… falls back to the absolute date after a week. */

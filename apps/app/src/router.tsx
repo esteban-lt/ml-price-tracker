@@ -9,6 +9,7 @@ import { ResetPasswordPage } from '@/pages/auth/reset-password-page'
 import { UnsubscribePage } from '@/pages/auth/unsubscribe-page'
 import { VerifyEmailPage } from '@/pages/auth/verify-email-page'
 import { AccountPage } from '@/pages/account-page'
+import { AdminMercadoLibrePage } from '@/pages/admin-mercado-libre-page'
 import { AlertsPage } from '@/pages/alerts-page'
 import { BestSellersPage } from '@/pages/best-sellers-page'
 import { ChangePasswordPage } from '@/pages/change-password-page'
@@ -18,7 +19,6 @@ import { SearchPage } from '@/pages/search-page'
 import { TrackingDetailPage } from '@/pages/tracking-detail-page'
 import { TrackingsPage } from '@/pages/trackings-page'
 import { NotFoundPage } from '@/pages/not-found-page'
-import { PlaceholderPage } from '@/pages/placeholder-page'
 
 // Route names follow the screens guide. /reset-password and /unsubscribe are
 // fixed: the API's emails link to them.
@@ -59,7 +59,7 @@ export const router = createBrowserRouter([
           { path: '/alertas', element: <AlertsPage /> },
           { path: '/cuenta', element: <AccountPage /> },
           { path: '/cuenta/contrasena', element: <ChangePasswordPage /> },
-          { path: '/admin/mercado-libre', element: <PlaceholderPage code="X1" title="Conexión con Mercado Libre" /> },
+          { path: '/admin/mercado-libre', element: <AdminMercadoLibrePage /> },
         ],
       },
 
