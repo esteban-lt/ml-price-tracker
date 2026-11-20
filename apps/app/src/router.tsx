@@ -12,6 +12,8 @@ import { BestSellersPage } from '@/pages/best-sellers-page'
 import { CategoriesPage } from '@/pages/categories-page'
 import { HomePage } from '@/pages/home-page'
 import { SearchPage } from '@/pages/search-page'
+import { TrackingDetailPage } from '@/pages/tracking-detail-page'
+import { TrackingsPage } from '@/pages/trackings-page'
 import { NotFoundPage } from '@/pages/not-found-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
 
@@ -49,8 +51,8 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
-          { path: '/seguimientos', element: <PlaceholderPage code="A1" title="Mis seguimientos" /> },
-          { path: '/seguimientos/:id', element: <PlaceholderPage code="A3" title="Detalle del seguimiento" /> },
+          { path: '/seguimientos', element: <TrackingsPage /> },
+          { path: '/seguimientos/:id', element: <TrackingDetailPage /> },
           { path: '/alertas', element: <PlaceholderPage code="A5" title="Alertas" /> },
           { path: '/cuenta', element: <PlaceholderPage code="A6" title="Mi cuenta" /> },
           { path: '/cuenta/contrasena', element: <PlaceholderPage code="A7" title="Cambiar contraseña" /> },
